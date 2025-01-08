@@ -31,6 +31,7 @@ import { Popover, PopoverButton, PopoverPanel } from '@headlessui/react'
 import { useNotificationsContext } from "../NotificationsContext";
 import {PlayerPercentilesOne} from "./player/playerPercentilesOne";
 import {PlayerPercentilesTwo} from "./player/playerPercentilesTwo";
+import {getRecentPlaytimeForGame} from "./playtime";
 
 const PlayerMatchHistory = React.lazy(() =>import('./player/matchHistory').then(module => ({default: module.PlayerMatchHistory})));
 const TeamSideRatingPie = React.lazy(() =>import('../common/components/teamSideRatingPie').then(module => ({default: module.TeamSideRatingPie})));
@@ -44,6 +45,7 @@ export function Player() {
 	const { players = [], franchises = [], loading, seasonAndMatchType, tiers, loggedinUser } = useDataContext();
 	const { addNotification } = useNotificationsContext();
 	const [ showProfile, setShowProfile ] = React.useState(false);
+	const [ playerTime, setPlayerTime ] = React.useState<number>(0);
 
 	const nameParam = decodeURIComponent(params?.id ?? "");
 	const nameFromUrl = window.location.href.split("/").pop();
@@ -74,6 +76,21 @@ export function Player() {
 	if (!currentPlayer) {
 		return <Container>An error occured. Player could not found. Please inform Camps of this error.</Container>;
 	}
+
+	React.useEffect(() => {
+		async function fetchData() {
+			try {
+				if (currentPlayer) {
+					const data = await getRecentPlaytimeForGame(currentPlayer.steam64Id);
+					setPlayerTime(data);
+				}
+			} catch (error) {
+				console.error('Error loading player time:', error);
+			}
+		}
+
+		fetchData();
+	}, []);
 
 	if ( currentPlayer === loggedinUser && !isLoadingPlayerProfile && Object.keys(playerProfile).length === 0 ) {
 		addNotification({
@@ -240,6 +257,11 @@ export function Player() {
 						</div>
 						<div className="float-right w-4 sm:w-40 after:clear-both">
 							<ExternalPlayerLinks player={currentPlayer} />
+						</div>
+						<div>
+							<div className="text-sm italic font-bold text-gray-600 text-center w-full">
+								{playerTime.toFixed(2)} hours in the last 2 weeks.
+							</div>
 						</div>
 						{/* <div className="clear-both" /> */}
 					</div>
