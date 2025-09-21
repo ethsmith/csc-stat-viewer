@@ -27,6 +27,12 @@ export function TeamBuilder() {
   const [tierFilter, setTierFilter] = useState<string[]>([]);
   const [typeFilter, setTypeFilter] = useState<string[]>([]);
 
+  // CSV data state for drafted status
+  const [csvUrl, setCsvUrl] = useState<string>("");
+  const [draftedData, setDraftedData] = useState<Map<string, boolean>>(new Map());
+  const [csvError, setCsvError] = useState<string>("");
+  const [csvLoading, setCsvLoading] = useState<boolean>(false);
+
   // Build list of stat keys from PlayerMappings (core stats) and extended stats
   const extendedStatsArray = useMemo(() => {
     const apiPayload = (extendedPlayerStats as any);
@@ -55,7 +61,8 @@ export function TeamBuilder() {
         group: "Extended",
       }));
     const mmrOption = { value: "mmr", label: "MMR (mmr)", group: "Core" };
-    return [mmrOption, ...coreOptions, ...extOptions].sort((a, b) => a.label.localeCompare(b.label));
+    const draftedOption = { value: "drafted", label: "Drafted Status (drafted)", group: "Draft" };
+    return [mmrOption, draftedOption, ...coreOptions, ...extOptions].sort((a, b) => a.label.localeCompare(b.label));
   }, [extendedKeys]);
 
   // Helper to get the appropriate stats object for a player
@@ -87,6 +94,11 @@ export function TeamBuilder() {
   const getStatValue = (player: Player, key?: string): any => {
     if (!key) return undefined;
     if (key === "mmr") return player.mmr;
+    if (key === "drafted") {
+      // Check CSV data first, then fall back to default (true if not found)
+      const csvDraftedStatus = draftedData.get(player.id) ?? draftedData.get(player.name.toLowerCase());
+      return csvDraftedStatus !== undefined ? csvDraftedStatus : true;
+    }
     // core stat
     if (key in PlayerMappings) {
       const stats = getPlayerStats(player);
@@ -99,6 +111,7 @@ export function TeamBuilder() {
   // Determine if a field is string-like based on sample data
   const isStringField = (field?: string): boolean => {
     if (!field) return false;
+    if (field === "drafted") return false; // drafted is boolean, treat as numeric for filtering
     // Check in players first
     for (const p of players) {
       const v = getStatValue(p, field);
@@ -112,6 +125,111 @@ export function TeamBuilder() {
       return typeof (sample as any)[field] === "string";
     }
     return false;
+  };
+
+  // CSV parsing and fetching functions
+  const parseCSVLine = (line: string): string[] => {
+    const result: string[] = [];
+    let current = '';
+    let inQuotes = false;
+
+    for (let i = 0; i < line.length; i++) {
+      const char = line[i];
+      
+      if (char === '"') {
+        inQuotes = !inQuotes;
+      } else if (char === ',' && !inQuotes) {
+        result.push(current);
+        current = '';
+      } else {
+        current += char;
+      }
+    }
+    
+    result.push(current);
+    return result;
+  };
+
+  const parseBoolean = (value: string): boolean => {
+    if (!value) return false;
+    const normalized = value.toLowerCase().trim();
+    return normalized === 'true' || normalized === 'yes' || normalized === '1' || normalized === 'x' || normalized === '✓';
+  };
+
+  const fetchCSVData = async (url: string) => {
+    setCsvLoading(true);
+    setCsvError("");
+    
+    try {
+      const response = await fetch(url);
+      if (!response.ok) {
+        throw new Error(`Failed to fetch CSV: ${response.statusText}`);
+      }
+
+      const csvText = await response.text();
+      const lines = csvText.trim().split('\n');
+      
+      if (lines.length < 2) {
+        throw new Error('CSV file appears to be empty or invalid');
+      }
+
+      const headers = lines[0].split(',').map(h => h.trim().replace(/"/g, ''));
+      console.log('CSV Headers:', headers);
+      
+      const newDraftedData = new Map<string, boolean>();
+
+      for (let i = 1; i < lines.length; i++) {
+        const values = parseCSVLine(lines[i]);
+        if (values.length < headers.length) continue;
+
+        let cscId = '';
+        let name = '';
+        let drafted = false;
+
+        headers.forEach((header, index) => {
+          const value = values[index]?.trim().replace(/"/g, '') || '';
+          
+          const headerLower = header.toLowerCase().trim();
+          switch (headerLower) {
+            case 'csc id':
+            case 'cscid':
+              cscId = value;
+              break;
+            case 'name':
+              name = value;
+              break;
+            case 'drafted?':
+            case 'drafted':
+              drafted = parseBoolean(value);
+              console.log(`Player: ${name || cscId}, Drafted value: "${value}", Parsed: ${drafted}`);
+              break;
+          }
+        });
+
+        if (cscId || name) {
+          if (cscId) newDraftedData.set(cscId, drafted);
+          if (name) newDraftedData.set(name.toLowerCase(), drafted);
+          console.log(`Added to map - CSC ID: ${cscId}, Name: ${name}, Drafted: ${drafted}`);
+        }
+      }
+
+      setDraftedData(newDraftedData);
+      console.log(`Total entries in map: ${newDraftedData.size}`);
+      console.log('Map contents:', Array.from(newDraftedData.entries()));
+      console.log(`Loaded drafted status for ${Math.floor(newDraftedData.size / 2)} players`);
+      
+    } catch (error) {
+      console.error('Error fetching CSV:', error);
+      setCsvError(error instanceof Error ? error.message : 'Failed to fetch CSV data');
+    } finally {
+      setCsvLoading(false);
+    }
+  };
+
+  const handleLoadCSV = () => {
+    if (csvUrl.trim()) {
+      fetchCSVData(csvUrl.trim());
+    }
   };
 
   // Apply all filters (AND) and sort results
@@ -235,8 +353,10 @@ export function TeamBuilder() {
     statDescriptionsShort[key as keyof typeof statDescriptionsShort] ??
     key;
 
-  const formatVal = (val: any) =>
-    typeof val === "number" ? Number(val).toFixed(2) : val ?? "-";
+  const formatVal = (val: any) => {
+    if (typeof val === "boolean") return val ? "Yes" : "No";
+    return typeof val === "number" ? Number(val).toFixed(2) : val ?? "-";
+  };
 
   const formatPlayerType = (t?: string) => {
     if (!t) return "-";
@@ -263,6 +383,40 @@ export function TeamBuilder() {
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {/* Left: Filter Builder */}
         <div className="space-y-3">
+          {/* CSV URL Input for Drafted Status */}
+          <div className="border border-gray-200 dark:border-gray-800 rounded p-3 bg-gray-50 dark:bg-gray-900">
+            <div className="text-sm font-medium mb-2">Draft Status CSV</div>
+            <div className="text-xs text-gray-600 dark:text-gray-400 mb-2">
+              Enter a CSV URL with columns: CSC ID, Name, Drafted? (to get CSV URL: File → Share → Publish to web → CSV format)
+            </div>
+            <div className="flex gap-2">
+              <input
+                type="url"
+                placeholder="https://docs.google.com/spreadsheets/.../export?format=csv"
+                value={csvUrl}
+                onChange={(e) => setCsvUrl(e.target.value)}
+                className="flex-1 rounded border border-gray-300 bg-white px-2 py-1 text-sm dark:bg-gray-800 dark:border-gray-700"
+              />
+              <button
+                onClick={handleLoadCSV}
+                disabled={!csvUrl.trim() || csvLoading}
+                className="rounded bg-blue-600 px-3 py-1 text-white text-sm disabled:opacity-50"
+              >
+                {csvLoading ? "Loading..." : "Load"}
+              </button>
+            </div>
+            {csvError && (
+              <div className="mt-2 text-xs text-red-600 dark:text-red-400">
+                Error: {csvError}
+              </div>
+            )}
+            {draftedData.size > 0 && !csvError && (
+              <div className="mt-2 text-xs text-green-600 dark:text-green-400">
+                ✓ Loaded drafted status for {Math.floor(draftedData.size / 2)} players
+              </div>
+            )}
+          </div>
+          
           {/* Tier filter */}
           <div className="flex items-center gap-2">
             <div className="grow">
