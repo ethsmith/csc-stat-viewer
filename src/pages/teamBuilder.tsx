@@ -58,13 +58,39 @@ export function TeamBuilder() {
     return [mmrOption, ...coreOptions, ...extOptions].sort((a, b) => a.label.localeCompare(b.label));
   }, [extendedKeys]);
 
+  // Helper to get the appropriate stats object for a player
+  const getPlayerStats = (player: Player) => {
+    // Define tier hierarchy (each tier falls back to the one below it)
+    const tierFallbacks: Record<string, string> = {
+	  "Premier": "Elite",
+      "Elite": "Challenger",
+      "Challenger": "Contender", 
+      "Contender": "Prospect",
+      "Prospect": "Recruit"
+    };
+
+    // If player has no games played in current tier, try to use stats from lower tier
+    if ((!player.stats?.gameCount || player.stats.gameCount === 0) && player.tier?.name) {
+      const fallbackTier = tierFallbacks[player.tier.name];
+      if (fallbackTier) {
+        const fallbackStats = player.statsOutOfTier?.find(tierStats => tierStats.tier === fallbackTier);
+        if (fallbackStats?.stats && fallbackStats.stats.gameCount > 0) {
+          return fallbackStats.stats;
+        }
+      }
+    }
+    // Default to current tier stats
+    return player.stats;
+  };
+
   // Helper to read stat value from player
   const getStatValue = (player: Player, key?: string): any => {
     if (!key) return undefined;
     if (key === "mmr") return player.mmr;
     // core stat
     if (key in PlayerMappings) {
-      return (player.stats as any)?.[key];
+      const stats = getPlayerStats(player);
+      return (stats as any)?.[key];
     }
     // extended stat
     return (player.extendedStats as any)?.[key];
@@ -373,10 +399,41 @@ export function TeamBuilder() {
                     <div className="text-xs text-gray-600 dark:text-gray-300 space-x-3">
                       <span><strong>MMR:</strong> {p.mmr ?? "-"}</span>
                       <span>
-                        <strong>Rating:</strong> {p.stats?.rating?.toFixed ? p.stats.rating.toFixed(2) : (p.stats?.rating ?? "-")}
-                        {typeof p.stats?.gameCount === 'number' && (
-                          <> (<span title="Games Played">{p.stats.gameCount}</span>)</>
-                        )}
+                        {(() => {
+                          const stats = getPlayerStats(p);
+                          const isUsingFallbackStats = (!p.stats?.gameCount || p.stats.gameCount === 0) && 
+                            stats !== p.stats;
+                          
+                          // Determine which tier's stats are being shown
+                          let fallbackTierIndicator = "";
+                          if (isUsingFallbackStats && p.statsOutOfTier) {
+                            const fallbackTierStats = p.statsOutOfTier.find(tierStats => tierStats.stats === stats);
+                            if (fallbackTierStats) {
+                              const tierAbbreviations: Record<string, string> = {
+								"Elite": "E",
+                                "Challenger": "C",
+                                "Contender": "T",
+                                "Prospect": "P",
+                                "Recruit": "R"
+                              };
+                              fallbackTierIndicator = tierAbbreviations[fallbackTierStats.tier] || fallbackTierStats.tier.charAt(0);
+                            }
+                          }
+                          
+                          return (
+                            <>
+                              <strong>Rating:</strong> {stats?.rating?.toFixed ? stats.rating.toFixed(2) : (stats?.rating ?? "-")}
+                              {typeof stats?.gameCount === 'number' && (
+                                <> (<span title="Games Played">{stats.gameCount}</span>)</>
+                              )}
+                              {isUsingFallbackStats && fallbackTierIndicator && (
+                                <span className="text-blue-500 ml-1" title={`Showing ${p.statsOutOfTier?.find(ts => ts.stats === stats)?.tier} tier stats`}>
+                                  *{fallbackTierIndicator}
+                                </span>
+                              )}
+                            </>
+                          );
+                        })()}
                       </span>
                     </div>
                     <button
