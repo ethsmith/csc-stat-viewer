@@ -20,6 +20,7 @@ import {
 	ExportData,
 	TeamStandings,
 	Servers,
+	Dashboard,
 } from "./pages";
 import { ArticleRoutes } from "./pages/articles/routes";
 import { useDataContext } from "./DataContext";
@@ -107,6 +108,7 @@ export function Router() {
 		{ path: `/draft`, component: () => <Draft /> },
 		{ path: `/admin`, component: () => <Admin /> },
 		{ path: `/gm`, component: () => <GMPanel /> },
+		{ path: `/dashboard`, component: () => <Dashboard /> },
 		{ path: `/franchiseManagement`, component: () => <FranchiseManagement /> },
 	].concat(articleRoutes);
 
