@@ -13,6 +13,7 @@ import { GMSidebar } from "./components/GMSidebar";
 import { InsightsPanel, Insight } from "./components/InsightsPanel";
 import { PlayerStatCell } from "./components/PlayerStatCell";
 import { TeamSummary } from "./components/TeamSummary";
+import { RoleFitScore } from "./components/RoleFitScore";
 import { PlayerTargets, PlayerRoles, PLAYER_ROLES } from "./types";
 import {
 	getPlayerTarget,
@@ -328,13 +329,31 @@ export function Dashboard() {
 								})) || []}
 								tierAverages={(() => {
 									const tierStats = statsCache?.data?.[selectedTeam.tier.name as keyof typeof statsCache.data];
-									if (!tierStats || tierStats.length === 0) return { rating: undefined, odaR: undefined };
+									if (!tierStats || tierStats.length === 0) return { rating: undefined, odaR: undefined, impact: undefined };
 									const avgRating = tierStats.reduce((sum, p) => sum + (p.rating || 0), 0) / tierStats.length;
 									const avgOdaR = tierStats.reduce((sum, p) => sum + (p.odaR || 0), 0) / tierStats.length;
-									return { rating: avgRating, odaR: avgOdaR };
+									const avgImpact = tierStats.reduce((sum, p) => sum + (p.impact || 0), 0) / tierStats.length;
+									return { rating: avgRating, odaR: avgOdaR, impact: avgImpact };
 								})()}
 								playerTargets={parsedPlayerTargets}
 								playerRoles={parsedPlayerRoles}
+							/>
+
+							{/* Role Fit Score */}
+							<RoleFitScore
+								players={selectedTeam.players?.map(player => ({
+									name: player.name,
+									stats: getPlayerStats(player.name, selectedTeam.tier.name)
+								})) || []}
+								playerRoles={parsedPlayerRoles}
+								tierAverages={(() => {
+									const tierStats = statsCache?.data?.[selectedTeam.tier.name as keyof typeof statsCache.data];
+									if (!tierStats || tierStats.length === 0) return { rating: undefined, odaR: undefined, impact: undefined };
+									const avgRating = tierStats.reduce((sum, p) => sum + (p.rating || 0), 0) / tierStats.length;
+									const avgOdaR = tierStats.reduce((sum, p) => sum + (p.odaR || 0), 0) / tierStats.length;
+									const avgImpact = tierStats.reduce((sum, p) => sum + (p.impact || 0), 0) / tierStats.length;
+									return { rating: avgRating, odaR: avgOdaR, impact: avgImpact };
+								})()}
 							/>
 
 							<div className="bg-gray-800 rounded-lg border border-gray-700 overflow-hidden">
