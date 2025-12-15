@@ -8,9 +8,24 @@ import { useCscStatsCache } from "../../dao/cscStatsGraphQLDao";
 import { useCachedCscSeasonAndTiers } from "../../dao/cscSeasonAndTiersDao";
 import { Link } from "wouter";
 import { franchiseImages } from "../../common/images/franchise";
-type TargetRatings = Record<string, number>;
+import { CscStats } from "../../models/csc-stats-types";
+
+type PlayerTargets = Record<string, Record<string, number>>;
 type PlayerRoles = Record<string, string>;
 type PlayerRole = "IGL" | "AWPER" | "ENTRY" | "SUPPORT" | "RIFLER" | "LURKER";
+
+const AVAILABLE_STATS: { key: keyof CscStats; label: string }[] = [
+	{ key: "rating", label: "Rating" },
+	{ key: "kr", label: "K/R" },
+	{ key: "adr", label: "ADR" },
+	{ key: "kast", label: "KAST" },
+	{ key: "impact", label: "Impact" },
+	{ key: "hs", label: "HS%" },
+	{ key: "clutchR", label: "Clutch" },
+	{ key: "awpR", label: "AWP K/R" },
+	{ key: "odr", label: "OD%" },
+	{ key: "odaR", label: "ODA/R" },
+];
 
 const PLAYER_ROLES: PlayerRole[] = ["IGL", "AWPER", "ENTRY", "SUPPORT", "RIFLER", "LURKER"];
 
@@ -23,8 +38,10 @@ export function Dashboard() {
 	const [selectedFranchise, setSelectedFranchise] = useLocalStorage("franchise", "");
 	const [searchQuery, setSearchQuery] = React.useState("");
 	const [selectedTeamId, setSelectedTeamId] = React.useState<string | null>(null);
-	const [targetRatings, setTargetRatings] = useLocalStorage("playerTargetRatings", "{}");
+	const [playerTargets, setPlayerTargets] = useLocalStorage("playerTargets", "{}");
+	const [selectedStats, setSelectedStats] = useLocalStorage("selectedTargetStats", '["rating"]');
 	const [playerRoles, setPlayerRoles] = useLocalStorage("playerRoles", "{}");
+	const fileInputRef = React.useRef<HTMLInputElement>(null);
 	
 	const { data: seasonAndTierConfig } = useCachedCscSeasonAndTiers();
 	const season = seasonAndTierConfig?.number ?? 0;
@@ -54,6 +71,145 @@ export function Dashboard() {
 		setSelectedFranchise("");
 	};
 
+	const handleImportSettings = (event: React.ChangeEvent<HTMLInputElement>) => {
+		const file = event.target.files?.[0];
+		if (!file) return;
+
+		const reader = new FileReader();
+		reader.onload = (e) => {
+			try {
+				const content = e.target?.result as string;
+				const importData = JSON.parse(content);
+
+				if (importData.franchise) {
+					setSelectedFranchise(importData.franchise);
+				}
+				if (importData.playerTargets) {
+					setPlayerTargets(importData.playerTargets);
+				}
+				if (importData.playerRoles) {
+					setPlayerRoles(importData.playerRoles);
+				}
+				if (importData.selectedTargetStats) {
+					setSelectedStats(importData.selectedTargetStats);
+				}
+
+				alert('Settings imported successfully!');
+			} catch (error) {
+				alert('Error importing settings. Please check the file format.');
+				console.error('Import error:', error);
+			}
+		};
+		reader.readAsText(file);
+
+		if (event.target) {
+			event.target.value = '';
+		}
+	};
+
+	const handleImportClick = () => {
+		fileInputRef.current?.click();
+	};
+
+	const currentFranchise = franchises.find(f => f.prefix === selectedFranchise);
+
+	React.useEffect(() => {
+		if (currentFranchise?.teams && currentFranchise.teams.length > 0 && !selectedTeamId) {
+			setSelectedTeamId(currentFranchise.teams[0].id);
+		}
+	}, [currentFranchise, selectedTeamId]);
+
+	const selectedTeam = currentFranchise?.teams?.find(team => team.id === selectedTeamId);
+	
+	const getPlayerStats = (playerName: string, tierName: string) => {
+		const tierStats = statsCache?.data?.[tierName as keyof typeof statsCache.data];
+		return tierStats?.find(stat => stat.name === playerName);
+	};
+
+	const parsedPlayerTargets: PlayerTargets = React.useMemo(() => {
+		try {
+			return JSON.parse(playerTargets);
+		} catch {
+			return {};
+		}
+	}, [playerTargets]);
+
+	const parsedSelectedStats: string[] = React.useMemo(() => {
+		try {
+			const parsed = JSON.parse(selectedStats);
+			return Array.isArray(parsed) && parsed.length > 0 ? parsed : ["rating"];
+		} catch {
+			return ["rating"];
+		}
+	}, [selectedStats]);
+
+	const parsedPlayerRoles: PlayerRoles = React.useMemo(() => {
+		try {
+			return JSON.parse(playerRoles);
+		} catch {
+			return {};
+		}
+	}, [playerRoles]);
+
+	const getTierAverage = (tierName: string, statKey: string): number | undefined => {
+		const tierStats = statsCache?.data?.[tierName as keyof typeof statsCache.data];
+		if (!tierStats || tierStats.length === 0) return undefined;
+		
+		const validValues = tierStats
+			.map(stat => stat[statKey as keyof CscStats] as number | undefined)
+			.filter((val): val is number => val !== undefined && !isNaN(val));
+		
+		if (validValues.length === 0) return undefined;
+		
+		const sum = validValues.reduce((acc, val) => acc + val, 0);
+		return sum / validValues.length;
+	};
+
+	const getPlayerTarget = (playerName: string, statKey: string, tierName: string): number | undefined => {
+		const playerTargetData = parsedPlayerTargets[playerName];
+		if (playerTargetData && playerTargetData[statKey] !== undefined) {
+			return playerTargetData[statKey];
+		}
+		return getTierAverage(tierName, statKey);
+	};
+
+	const getStatColor = (currentValue: number | undefined, targetValue: number | undefined, statKey: string) => {
+		if (!currentValue || !targetValue) return "text-gray-300";
+		const diff = currentValue - targetValue;
+		const threshold = statKey === "rating" ? 0.03 : targetValue * 0.05;
+		if (diff > threshold) return "text-green-400";
+		if (diff >= 0) return "text-blue-400";
+		if (diff >= -threshold) return "text-yellow-400";
+		return "text-red-400";
+	};
+
+	const getStatLabel = (statKey: string): string => {
+		const stat = AVAILABLE_STATS.find(s => s.key === statKey);
+		return stat?.label || statKey;
+	};
+
+	const handleExportSettings = () => {
+		const exportData = {
+			franchise: selectedFranchise,
+			playerTargets: playerTargets,
+			playerRoles: playerRoles,
+			selectedTargetStats: selectedStats,
+			exportDate: new Date().toISOString(),
+			version: "1.0"
+		};
+
+		const dataStr = JSON.stringify(exportData, null, 2);
+		const dataBlob = new Blob([dataStr], { type: 'application/json' });
+		const url = URL.createObjectURL(dataBlob);
+		const link = document.createElement('a');
+		link.href = url;
+		link.download = `gm-targets-${selectedFranchise}-${new Date().toISOString().split('T')[0]}.json`;
+		document.body.appendChild(link);
+		link.click();
+		document.body.removeChild(link);
+		URL.revokeObjectURL(url);
+	};
+
 	if (isLoading || isLoadingStats) {
 		return (
 			<Container>
@@ -70,6 +226,25 @@ export function Dashboard() {
 					<p className="mt-4 text-gray-300">
 						Please select the franchise you represent to access the dashboard.
 					</p>
+					<div className="mt-6 flex justify-center">
+						<button
+							onClick={handleImportClick}
+							className="px-6 py-3 bg-green-600 hover:bg-green-500 text-white rounded-lg transition-colors flex items-center gap-2 text-lg font-semibold"
+							title="Import targets and settings"
+						>
+							<svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" viewBox="0 0 20 20" fill="currentColor">
+								<path fillRule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zM6.293 6.707a1 1 0 010-1.414l3-3a1 1 0 011.414 0l3 3a1 1 0 01-1.414 1.414L11 5.414V13a1 1 0 11-2 0V5.414L7.707 6.707a1 1 0 01-1.414 0z" clipRule="evenodd" />
+							</svg>
+							Import Settings
+						</button>
+						<input
+							ref={fileInputRef}
+							type="file"
+							accept=".json"
+							onChange={handleImportSettings}
+							className="hidden"
+						/>
+					</div>
 				</div>
 
 				<div className="mx-auto max-w-xl mb-8">
@@ -134,73 +309,62 @@ export function Dashboard() {
 		);
 	}
 
-	const currentFranchise = franchises.find(f => f.prefix === selectedFranchise);
-
-	React.useEffect(() => {
-		if (currentFranchise?.teams && currentFranchise.teams.length > 0 && !selectedTeamId) {
-			setSelectedTeamId(currentFranchise.teams[0].id);
-		}
-	}, [currentFranchise, selectedTeamId]);
-
-	const selectedTeam = currentFranchise?.teams?.find(team => team.id === selectedTeamId);
-	
-	const getPlayerStats = (playerName: string, tierName: string) => {
-		const tierStats = statsCache?.data?.[tierName as keyof typeof statsCache.data];
-		return tierStats?.find(stat => stat.name === playerName);
-	};
-
-	const parsedTargetRatings: TargetRatings = React.useMemo(() => {
-		try {
-			return JSON.parse(targetRatings);
-		} catch {
-			return {};
-		}
-	}, [targetRatings]);
-
-	const parsedPlayerRoles: PlayerRoles = React.useMemo(() => {
-		try {
-			return JSON.parse(playerRoles);
-		} catch {
-			return {};
-		}
-	}, [playerRoles]);
-
-	const setPlayerTargetRating = (playerName: string, rating: number) => {
-		const updated = { ...parsedTargetRatings, [playerName]: rating };
-		setTargetRatings(JSON.stringify(updated));
-	};
-
-	const setPlayerRole = (playerName: string, role: string) => {
-		const updated = { ...parsedPlayerRoles, [playerName]: role };
-		setPlayerRoles(JSON.stringify(updated));
-	};
-
-	const getRatingColor = (currentRating: number | undefined, targetRating: number | undefined) => {
-		if (!currentRating || !targetRating) return "text-gray-300";
-		const diff = currentRating - targetRating;
-		if (diff > 0.03) return "text-green-400";
-		if (diff >= 0) return "text-blue-400";
-		if (diff >= -0.03) return "text-yellow-400";
-		return "text-red-400";
-	};
-
 	return (
 		<Container>
 			<div className="flex justify-between items-center mb-8">
-				<div>
-					<h2 className="text-3xl font-bold">Franchise Dashboard</h2>
+				<div className="flex items-center gap-6">
 					{currentFranchise && (
-						<p className="mt-2 text-gray-300">
-							Managing: <span className="font-semibold text-blue-400">{currentFranchise.name}</span>
-						</p>
+						<img
+							src={getFranchiseImage(currentFranchise.prefix)}
+							alt={currentFranchise.name}
+							className="w-20 h-20 object-contain"
+							onError={(e) => {
+								(e.target as HTMLImageElement).style.display = 'none';
+							}}
+						/>
 					)}
+					<div>
+						<h2 className="text-3xl font-bold">Franchise Dashboard</h2>
+						{currentFranchise && (
+							<p className="mt-2 text-gray-300">
+								Managing: <span className="font-semibold text-blue-400">{currentFranchise.name}</span>
+							</p>
+						)}
+					</div>
 				</div>
-				<button
-					onClick={handleClearFranchise}
-					className="px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded-lg transition-colors"
-				>
-					Change Franchise
-				</button>
+				<div className="flex gap-3">
+					<button
+						onClick={handleExportSettings}
+						className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg transition-colors flex items-center gap-2"
+						title="Export targets and settings"
+					>
+						<svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+							<path fillRule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clipRule="evenodd" />
+						</svg>
+						Export
+					</button>
+					<button
+						onClick={handleImportClick}
+						className="px-4 py-2 bg-green-600 hover:bg-green-500 text-white rounded-lg transition-colors flex items-center gap-2"
+						title="Import targets and settings"
+					>
+						<svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+							<path fillRule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zM6.293 6.707a1 1 0 010-1.414l3-3a1 1 0 011.414 0l3 3a1 1 0 01-1.414 1.414L11 5.414V13a1 1 0 11-2 0V5.414L7.707 6.707a1 1 0 01-1.414 0z" clipRule="evenodd" />
+						</svg>
+						Import
+					</button>
+					<Link href="/dashboard/targets">
+						<button className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg transition-colors">
+							Set Targets
+						</button>
+					</Link>
+					<button
+						onClick={handleClearFranchise}
+						className="px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded-lg transition-colors"
+					>
+						Change Franchise
+					</button>
+				</div>
 			</div>
 
 			<div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
@@ -285,18 +449,11 @@ export function Dashboard() {
 												<th className="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">
 													MMR
 												</th>
-												<th className="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">
-													Rating
-												</th>
-												<th className="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">
-													Target Rating
-												</th>
-												<th className="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">
-													K/D
-												</th>
-												<th className="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">
-													ADR
-												</th>
+												{parsedSelectedStats.map(statKey => (
+													<th key={statKey} className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">
+														{getStatLabel(statKey)}
+													</th>
+												))}
 												<th className="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">
 													Role
 												</th>
@@ -306,9 +463,6 @@ export function Dashboard() {
 											{selectedTeam.players && selectedTeam.players.length > 0 ? (
 												selectedTeam.players.map((player, index) => {
 													const playerStats = getPlayerStats(player.name, selectedTeam.tier.name);
-													const kd = playerStats ? (playerStats.kills / (playerStats.deaths || 1)).toFixed(2) : "N/A";
-													const targetRating = parsedTargetRatings[player.name];
-													const ratingColor = getRatingColor(playerStats?.rating, targetRating);
 													return (
 														<tr key={player.steam64Id || index} className="hover:bg-gray-750">
 															<td className="px-6 py-4 whitespace-nowrap">
@@ -321,47 +475,25 @@ export function Dashboard() {
 															<td className="px-6 py-4 whitespace-nowrap">
 																<div className="text-sm text-gray-300">{player.mmr}</div>
 															</td>
-															<td className="px-6 py-4 whitespace-nowrap">
-																<div className={`text-sm font-semibold ${ratingColor}`}>
-																	{playerStats?.rating ? playerStats.rating.toFixed(2) : "N/A"}
-																</div>
-															</td>
-															<td className="px-6 py-4 whitespace-nowrap">
-																<input
-																	type="number"
-																	step="0.01"
-																	min="0"
-																	placeholder="Set target"
-																	value={targetRating || ""}
-																	onChange={(e) => {
-																		const value = parseFloat(e.target.value);
-																		if (!isNaN(value) && value >= 0) {
-																			setPlayerTargetRating(player.name, value);
-																		}
-																	}}
-																	className="w-24 px-2 py-1 text-sm bg-gray-700 text-white border border-gray-600 rounded focus:border-blue-500 focus:outline-none"
-																/>
-															</td>
-															<td className="px-6 py-4 whitespace-nowrap">
-																<div className="text-sm text-gray-300">{kd}</div>
-															</td>
-															<td className="px-6 py-4 whitespace-nowrap">
-																<div className="text-sm text-gray-300">
-																	{playerStats?.adr ? playerStats.adr.toFixed(1) : "N/A"}
-																</div>
-															</td>
+															{parsedSelectedStats.map(statKey => {
+																const currentValue = playerStats?.[statKey as keyof CscStats] as number | undefined;
+																const targetValue = getPlayerTarget(player.name, statKey, selectedTeam.tier.name);
+																const statColor = getStatColor(currentValue, targetValue, statKey);
+																return (
+																	<td key={`${player.name}-${statKey}`} className="px-4 py-4 whitespace-nowrap">
+																		<div className={`text-sm font-semibold ${statColor}`}>
+																			{currentValue !== undefined ? currentValue.toFixed(2) : "N/A"}
+																		</div>
+																	</td>
+																);
+															})}
 															<td className="px-6 py-4 whitespace-nowrap">
 																<div className="flex items-center gap-2">
-																	<select
-																		value={parsedPlayerRoles[player.name] || ""}
-																		onChange={(e) => setPlayerRole(player.name, e.target.value)}
-																		className="w-28 px-2 py-1 text-xs bg-gray-700 text-white border border-gray-600 rounded focus:border-blue-500 focus:outline-none"
-																	>
-																		<option value="">Select Role</option>
-																		{PLAYER_ROLES.map(role => (
-																			<option key={role} value={role}>{role}</option>
-																		))}
-																	</select>
+																	{parsedPlayerRoles[player.name] && (
+																		<span className="px-2 py-1 text-xs rounded bg-gray-700 text-white">
+																			{parsedPlayerRoles[player.name]}
+																		</span>
+																	)}
 																	{selectedTeam.captain?.steam64Id === player.steam64Id && (
 																		<span className="px-2 py-1 text-xs rounded bg-yellow-600 text-white">
 																			Captain
@@ -374,7 +506,7 @@ export function Dashboard() {
 												})
 											) : (
 												<tr>
-													<td colSpan={7} className="px-6 py-8 text-center text-gray-400">
+													<td colSpan={parsedSelectedStats.length + 3} className="px-6 py-8 text-center text-gray-400">
 														No players on this team
 													</td>
 												</tr>
