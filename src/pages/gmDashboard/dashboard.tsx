@@ -255,7 +255,7 @@ export function Dashboard() {
 	}
 
 	return (
-		<div className="flex h-screen bg-gray-900">
+				<div className="flex bg-gray-900">
 			<GMSidebar
 				currentFranchise={currentFranchise}
 				currentPage="dashboard"
@@ -267,7 +267,7 @@ export function Dashboard() {
 			/>
 
 			{/* Main Content */}
-			<div className="flex-1 overflow-auto">
+						<div className="flex-1 overflow-hidden">
 				<div className="max-w-7xl mx-auto px-4 py-8 sm:px-6 lg:px-8">
 
 			{currentFranchise && currentFranchise.teams && currentFranchise.teams.length > 0 && (
@@ -326,10 +326,13 @@ export function Dashboard() {
 									name: player.name,
 									stats: getPlayerStats(player.name, selectedTeam.tier.name)
 								})) || []}
-								tierAverages={{
-									rating: statsCache?.tierAverages?.[selectedTeam.tier.name as keyof typeof statsCache.tierAverages]?.rating,
-									odaR: statsCache?.tierAverages?.[selectedTeam.tier.name as keyof typeof statsCache.tierAverages]?.odaR
-								}}
+								tierAverages={(() => {
+									const tierStats = statsCache?.data?.[selectedTeam.tier.name as keyof typeof statsCache.data];
+									if (!tierStats || tierStats.length === 0) return { rating: undefined, odaR: undefined };
+									const avgRating = tierStats.reduce((sum, p) => sum + (p.rating || 0), 0) / tierStats.length;
+									const avgOdaR = tierStats.reduce((sum, p) => sum + (p.odaR || 0), 0) / tierStats.length;
+									return { rating: avgRating, odaR: avgOdaR };
+								})()}
 								playerTargets={parsedPlayerTargets}
 								playerRoles={parsedPlayerRoles}
 							/>
