@@ -8,6 +8,7 @@ interface GMSidebarProps {
 	currentPage: "dashboard" | "targets";
 	onExport: () => void;
 	onImport: () => void;
+	onExportSnapshot?: () => void;
 	onChangeFranchise: () => void;
 	fileInputRef: React.RefObject<HTMLInputElement | null>;
 	onFileChange: (event: React.ChangeEvent<HTMLInputElement>) => void;
@@ -22,6 +23,7 @@ export function GMSidebar({
 	currentPage,
 	onExport,
 	onImport,
+	onExportSnapshot,
 	onChangeFranchise,
 	fileInputRef,
 	onFileChange
@@ -106,6 +108,18 @@ export function GMSidebar({
 						onChange={onFileChange}
 						className="hidden"
 					/>
+
+					{onExportSnapshot && (
+						<button
+							onClick={onExportSnapshot}
+							className="w-full flex items-center gap-3 px-4 py-3 text-left text-gray-300 hover:text-white hover:bg-gray-700 rounded-lg transition-colors"
+						>
+							<svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+								<path fillRule="evenodd" d="M4 3a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V5a2 2 0 00-2-2H4zm12 12H4l4-8 3 6 2-4 3 6z" clipRule="evenodd" />
+							</svg>
+							<span className="font-medium">Export Snapshot</span>
+						</button>
+					)}
 				</div>
 			</nav>
 

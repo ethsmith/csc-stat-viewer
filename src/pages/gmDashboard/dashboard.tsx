@@ -22,6 +22,7 @@ import {
 	createImportHandler
 } from "./utils";
 import { generateInsights } from "./insightsEngine";
+import { generateTeamSnapshot } from "./pdfExport";
 
 const getFranchiseImage = (prefix: string): string => {
 	return franchiseImages[prefix] || "";
@@ -36,6 +37,7 @@ export function Dashboard() {
 	const [selectedStats, setSelectedStats] = useLocalStorage("selectedTargetStats", '["rating"]');
 	const [playerRoles, setPlayerRoles] = useLocalStorage("playerRoles", "{}");
 	const fileInputRef = React.useRef<HTMLInputElement>(null);
+	const dashboardContentRef = React.useRef<HTMLDivElement>(null);
 	
 	const { data: seasonAndTierConfig } = useCachedCscSeasonAndTiers();
 	const season = seasonAndTierConfig?.number ?? 0;
@@ -261,14 +263,34 @@ export function Dashboard() {
 				currentPage="dashboard"
 				onExport={handleExport}
 				onImport={handleImportClick}
+				onExportSnapshot={() => {
+					if (!dashboardContentRef.current || !selectedTeam || !currentFranchise) return;
+					const players = selectedTeam.players || [];
+					const totalMMR = players.reduce((acc, p) => acc + (p.mmr || 0), 0);
+					generateTeamSnapshot(dashboardContentRef.current, {
+						teamName: selectedTeam.name,
+						tierName: selectedTeam.tier.name,
+						franchiseName: currentFranchise.name,
+						players: players.map(p => ({
+							name: p.name,
+							mmr: p.mmr || 0
+						})),
+						teamStats: {
+							totalMMR,
+							avgMMR: Math.round(totalMMR / players.length),
+							mmrCap: selectedTeam.tier.mmrCap,
+							mmrRemaining: selectedTeam.tier.mmrCap - totalMMR
+						}
+					});
+				}}
 				onChangeFranchise={handleClearFranchise}
 				fileInputRef={fileInputRef}
 				onFileChange={handleImportSettings}
 			/>
 
 			{/* Main Content */}
-						<div className="flex-1 overflow-hidden">
-				<div className="max-w-7xl mx-auto px-4 py-8 sm:px-6 lg:px-8">
+						<div className="flex-1 overflow-auto bg-gray-900">
+				<div ref={dashboardContentRef} className="px-4 py-8 sm:px-6 lg:px-8">
 
 			{currentFranchise && currentFranchise.teams && currentFranchise.teams.length > 0 && (
 				<div className="mt-8">
