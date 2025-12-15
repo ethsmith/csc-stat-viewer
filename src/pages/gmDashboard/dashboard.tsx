@@ -14,6 +14,7 @@ import { InsightsPanel, Insight } from "./components/InsightsPanel";
 import { PlayerStatCell } from "./components/PlayerStatCell";
 import { TeamSummary } from "./components/TeamSummary";
 import { RoleFitScore } from "./components/RoleFitScore";
+import { DraggableSection, SectionId, DEFAULT_SECTION_ORDER } from "./components/DraggableSection";
 import { PlayerTargets, PlayerRoles, PLAYER_ROLES } from "./types";
 import {
 	getPlayerTarget,
@@ -36,7 +37,53 @@ export function Dashboard() {
 	const [playerTargets, setPlayerTargets] = useLocalStorage("playerTargets", "{}");
 	const [selectedStats, setSelectedStats] = useLocalStorage("selectedTargetStats", '["rating"]');
 	const [playerRoles, setPlayerRoles] = useLocalStorage("playerRoles", "{}");
+	const [sectionOrder, setSectionOrder] = useLocalStorage<string>("dashboardSectionOrder", JSON.stringify(DEFAULT_SECTION_ORDER));
 	const fileInputRef = React.useRef<HTMLInputElement>(null);
+
+	const parsedSectionOrder: SectionId[] = React.useMemo(() => {
+		try {
+			const parsed = JSON.parse(sectionOrder);
+			if (Array.isArray(parsed) && parsed.length === DEFAULT_SECTION_ORDER.length) {
+				return parsed as SectionId[];
+			}
+			return DEFAULT_SECTION_ORDER;
+		} catch {
+			return DEFAULT_SECTION_ORDER;
+		}
+	}, [sectionOrder]);
+
+	const [dragIndex, setDragIndex] = React.useState<number | null>(null);
+	const [dragOverIndex, setDragOverIndex] = React.useState<number | null>(null);
+
+	const handleDragStart = (index: number) => {
+		setDragIndex(index);
+	};
+
+	const handleDragOver = (e: React.DragEvent, index: number) => {
+		e.preventDefault();
+		if (dragIndex !== null && dragIndex !== index) {
+			setDragOverIndex(index);
+		}
+	};
+
+	const handleDragEnd = () => {
+		setDragIndex(null);
+		setDragOverIndex(null);
+	};
+
+	const handleDrop = (e: React.DragEvent, toIndex: number) => {
+		e.preventDefault();
+		if (dragIndex === null || dragIndex === toIndex) {
+			handleDragEnd();
+			return;
+		}
+
+		const newOrder = [...parsedSectionOrder];
+		const [removed] = newOrder.splice(dragIndex, 1);
+		newOrder.splice(toIndex, 0, removed);
+		setSectionOrder(JSON.stringify(newOrder));
+		handleDragEnd();
+	};
 	
 	const { data: seasonAndTierConfig } = useCachedCscSeasonAndTiers();
 	const season = seasonAndTierConfig?.number ?? 0;
@@ -313,161 +360,190 @@ export function Dashboard() {
 								</div>
 							</div>
 
-							{/* Actionable Insights Panel */}
-							<div className="mb-6">
-								<InsightsPanel 
-									insights={insights}
-									players={selectedTeam.players?.map(p => p.name) || []}
-								/>
-							</div>
+							{/* Reorderable Sections */}
+							<div className="space-y-0">
+								{parsedSectionOrder.map((sectionId, index) => {
+									const tierAverages = (() => {
+										const tierStats = statsCache?.data?.[selectedTeam.tier.name as keyof typeof statsCache.data];
+										if (!tierStats || tierStats.length === 0) return { rating: undefined, odaR: undefined, impact: undefined };
+										const avgRating = tierStats.reduce((sum, p) => sum + (p.rating || 0), 0) / tierStats.length;
+										const avgOdaR = tierStats.reduce((sum, p) => sum + (p.odaR || 0), 0) / tierStats.length;
+										const avgImpact = tierStats.reduce((sum, p) => sum + (p.impact || 0), 0) / tierStats.length;
+										return { rating: avgRating, odaR: avgOdaR, impact: avgImpact };
+									})();
 
-							{/* Team Summary */}
-							<TeamSummary
-								players={selectedTeam.players?.map(player => ({
-									name: player.name,
-									stats: getPlayerStats(player.name, selectedTeam.tier.name)
-								})) || []}
-								tierAverages={(() => {
-									const tierStats = statsCache?.data?.[selectedTeam.tier.name as keyof typeof statsCache.data];
-									if (!tierStats || tierStats.length === 0) return { rating: undefined, odaR: undefined, impact: undefined };
-									const avgRating = tierStats.reduce((sum, p) => sum + (p.rating || 0), 0) / tierStats.length;
-									const avgOdaR = tierStats.reduce((sum, p) => sum + (p.odaR || 0), 0) / tierStats.length;
-									const avgImpact = tierStats.reduce((sum, p) => sum + (p.impact || 0), 0) / tierStats.length;
-									return { rating: avgRating, odaR: avgOdaR, impact: avgImpact };
-								})()}
-								playerTargets={parsedPlayerTargets}
-								playerRoles={parsedPlayerRoles}
-							/>
-
-							{/* Role Fit Score */}
-							<RoleFitScore
-								players={selectedTeam.players?.map(player => ({
-									name: player.name,
-									stats: getPlayerStats(player.name, selectedTeam.tier.name)
-								})) || []}
-								playerRoles={parsedPlayerRoles}
-								tierAverages={(() => {
-									const tierStats = statsCache?.data?.[selectedTeam.tier.name as keyof typeof statsCache.data];
-									if (!tierStats || tierStats.length === 0) return { rating: undefined, odaR: undefined, impact: undefined };
-									const avgRating = tierStats.reduce((sum, p) => sum + (p.rating || 0), 0) / tierStats.length;
-									const avgOdaR = tierStats.reduce((sum, p) => sum + (p.odaR || 0), 0) / tierStats.length;
-									const avgImpact = tierStats.reduce((sum, p) => sum + (p.impact || 0), 0) / tierStats.length;
-									return { rating: avgRating, odaR: avgOdaR, impact: avgImpact };
-								})()}
-							/>
-
-							<div className="bg-gray-800 rounded-lg border border-gray-700 overflow-hidden">
-								<div className="overflow-x-auto">
-									<table className="w-full">
-										<thead className="bg-gray-900">
-											<tr>
-												<th className="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">
-													Player
-												</th>
-												<th className="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">
-													MMR
-												</th>
-												{parsedSelectedStats.map(statKey => (
-													<th key={statKey} className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">
-														{getStatLabel(statKey)}
-													</th>
-												))}
-												<th className="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">
-													Role
-												</th>
-											</tr>
-										</thead>
-										<tbody className="divide-y divide-gray-700">
-											{selectedTeam.players && selectedTeam.players.length > 0 ? (
-												selectedTeam.players.map((player, index) => {
-													const playerStats = getPlayerStats(player.name, selectedTeam.tier.name);
-													return (
-														<tr key={player.steam64Id || index} className="hover:bg-gray-750">
-															<td className="px-6 py-4 whitespace-nowrap">
-																<Link href={`/players/${player.name}`}>
-																	<div className="text-sm font-medium text-white hover:text-blue-400 cursor-pointer transition-colors">
-																		{player.name}
-																	</div>
-																</Link>
-															</td>
-															<td className="px-6 py-4 whitespace-nowrap">
-																<div className="text-sm text-gray-300">{player.mmr}</div>
-															</td>
-															{parsedSelectedStats.map(statKey => {
-																const playerStat = getPlayerStats(player.name, selectedTeam.tier.name);
-																const currentValue = playerStat?.[statKey as keyof CscStats] as number | undefined;
-																const targetValue = getPlayerTarget(parsedPlayerTargets, statsCache, player.name, statKey, selectedTeam.tier.name);
-																const statColor = getStatColor(currentValue, targetValue, statKey);
-																
-																return (
-																	<PlayerStatCell
-																		key={`${player.name}-${statKey}`}
-																		playerName={player.name}
-																		playerSteam64Id={player.steam64Id}
-																		statKey={statKey}
-																		currentValue={currentValue}
-																		statColor={statColor}
-																		season={season}
-																	/>
-																);
-															})}
-															<td className="px-6 py-4 whitespace-nowrap">
-																<div className="flex items-center gap-2">
-																	{parsedPlayerRoles[player.name] && (
-																		<span className="px-2 py-1 text-xs rounded bg-gray-700 text-white">
-																			{parsedPlayerRoles[player.name]}
-																		</span>
+									const renderSection = () => {
+										switch (sectionId) {
+											case "insights":
+												return (
+													<div className="mb-6">
+														<InsightsPanel 
+															insights={insights}
+															players={selectedTeam.players?.map(p => p.name) || []}
+														/>
+													</div>
+												);
+											case "teamSummary":
+												return (
+													<TeamSummary
+														players={selectedTeam.players?.map(player => ({
+															name: player.name,
+															stats: getPlayerStats(player.name, selectedTeam.tier.name)
+														})) || []}
+														tierAverages={tierAverages}
+														playerTargets={parsedPlayerTargets}
+														playerRoles={parsedPlayerRoles}
+													/>
+												);
+											case "roleFitScore":
+												return (
+													<RoleFitScore
+														players={selectedTeam.players?.map(player => ({
+															name: player.name,
+															stats: getPlayerStats(player.name, selectedTeam.tier.name)
+														})) || []}
+														playerRoles={parsedPlayerRoles}
+														tierAverages={tierAverages}
+													/>
+												);
+											case "playerTable":
+												return (
+													<div className="mb-6 bg-gray-800 rounded-lg border border-gray-700 overflow-hidden">
+														<div className="overflow-x-auto">
+															<table className="w-full">
+																<thead className="bg-gray-900">
+																	<tr>
+																		<th className="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">
+																			Player
+																		</th>
+																		<th className="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">
+																			MMR
+																		</th>
+																		{parsedSelectedStats.map(statKey => (
+																			<th key={statKey} className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">
+																				{getStatLabel(statKey)}
+																			</th>
+																		))}
+																		<th className="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">
+																			Role
+																		</th>
+																	</tr>
+																</thead>
+																<tbody className="divide-y divide-gray-700">
+																	{selectedTeam.players && selectedTeam.players.length > 0 ? (
+																		selectedTeam.players.map((player, idx) => {
+																			const playerStats = getPlayerStats(player.name, selectedTeam.tier.name);
+																			return (
+																				<tr key={player.steam64Id || idx} className="hover:bg-gray-750">
+																					<td className="px-6 py-4 whitespace-nowrap">
+																						<Link href={`/players/${player.name}`}>
+																							<div className="text-sm font-medium text-white hover:text-blue-400 cursor-pointer transition-colors">
+																								{player.name}
+																							</div>
+																						</Link>
+																					</td>
+																					<td className="px-6 py-4 whitespace-nowrap">
+																						<div className="text-sm text-gray-300">{player.mmr}</div>
+																					</td>
+																					{parsedSelectedStats.map(statKey => {
+																						const playerStat = getPlayerStats(player.name, selectedTeam.tier.name);
+																						const currentValue = playerStat?.[statKey as keyof CscStats] as number | undefined;
+																						const targetValue = getPlayerTarget(parsedPlayerTargets, statsCache, player.name, statKey, selectedTeam.tier.name);
+																						const statColor = getStatColor(currentValue, targetValue, statKey);
+																						
+																						return (
+																							<PlayerStatCell
+																								key={`${player.name}-${statKey}`}
+																								playerName={player.name}
+																								playerSteam64Id={player.steam64Id}
+																								statKey={statKey}
+																								currentValue={currentValue}
+																								statColor={statColor}
+																								season={season}
+																							/>
+																						);
+																					})}
+																					<td className="px-6 py-4 whitespace-nowrap">
+																						<div className="flex items-center gap-2">
+																							{parsedPlayerRoles[player.name] && (
+																								<span className="px-2 py-1 text-xs rounded bg-gray-700 text-white">
+																									{parsedPlayerRoles[player.name]}
+																								</span>
+																							)}
+																							{selectedTeam.captain?.steam64Id === player.steam64Id && (
+																								<span className="px-2 py-1 text-xs rounded bg-yellow-600 text-white">
+																									Captain
+																								</span>
+																							)}
+																						</div>
+																					</td>
+																				</tr>
+																			);
+																		})
+																	) : (
+																		<tr>
+																			<td colSpan={parsedSelectedStats.length + 3} className="px-6 py-8 text-center text-gray-400">
+																				No players on this team
+																			</td>
+																		</tr>
 																	)}
-																	{selectedTeam.captain?.steam64Id === player.steam64Id && (
-																		<span className="px-2 py-1 text-xs rounded bg-yellow-600 text-white">
-																			Captain
-																		</span>
+																</tbody>
+															</table>
+														</div>
+													</div>
+												);
+											case "mmrSummary":
+												if (!selectedTeam.players || selectedTeam.players.length === 0) return null;
+												return (
+													<div className="mb-6 p-4 bg-gray-800 rounded-lg border border-gray-700">
+														<div className="flex justify-between items-center">
+															<div>
+																<p className="text-sm text-gray-400">Total Team MMR</p>
+																<p className="text-2xl font-bold text-blue-400">
+																	{selectedTeam.players.reduce((acc, player) => acc + (player.mmr || 0), 0)}
+																</p>
+															</div>
+															<div>
+																<p className="text-sm text-gray-400">Average MMR</p>
+																<p className="text-2xl font-bold text-green-400">
+																	{Math.round(
+																		selectedTeam.players.reduce((acc, player) => acc + (player.mmr || 0), 0) /
+																			selectedTeam.players.length
 																	)}
-																</div>
-															</td>
-														</tr>
-													);
-												})
-											) : (
-												<tr>
-													<td colSpan={parsedSelectedStats.length + 3} className="px-6 py-8 text-center text-gray-400">
-														No players on this team
-													</td>
-												</tr>
-											)}
-										</tbody>
-									</table>
-								</div>
-							</div>
+																</p>
+															</div>
+															<div>
+																<p className="text-sm text-gray-400">MMR Remaining</p>
+																<p className="text-2xl font-bold text-purple-400">
+																	{selectedTeam.tier.mmrCap -
+																		selectedTeam.players.reduce((acc, player) => acc + (player.mmr || 0), 0)}
+																</p>
+															</div>
+														</div>
+													</div>
+												);
+											default:
+												return null;
+										}
+									};
 
-							{selectedTeam.players && selectedTeam.players.length > 0 && (
-								<div className="mt-4 p-4 bg-gray-800 rounded-lg border border-gray-700">
-									<div className="flex justify-between items-center">
-										<div>
-											<p className="text-sm text-gray-400">Total Team MMR</p>
-											<p className="text-2xl font-bold text-blue-400">
-												{selectedTeam.players.reduce((acc, player) => acc + (player.mmr || 0), 0)}
-											</p>
-										</div>
-										<div>
-											<p className="text-sm text-gray-400">Average MMR</p>
-											<p className="text-2xl font-bold text-green-400">
-												{Math.round(
-													selectedTeam.players.reduce((acc, player) => acc + (player.mmr || 0), 0) /
-														selectedTeam.players.length
-												)}
-											</p>
-										</div>
-										<div>
-											<p className="text-sm text-gray-400">MMR Remaining</p>
-											<p className="text-2xl font-bold text-purple-400">
-												{selectedTeam.tier.mmrCap -
-													selectedTeam.players.reduce((acc, player) => acc + (player.mmr || 0), 0)}
-											</p>
-										</div>
-									</div>
-								</div>
-							)}
+									return (
+										<DraggableSection
+											key={sectionId}
+											id={sectionId}
+											index={index}
+											isDragging={dragIndex === index}
+											dragOverIndex={dragOverIndex}
+											onDragStart={handleDragStart}
+											onDragOver={handleDragOver}
+											onDragEnd={handleDragEnd}
+											onDrop={handleDrop}
+										>
+											{renderSection()}
+										</DraggableSection>
+									);
+								})}
+							</div>
 						</div>
 					)}
 				</div>

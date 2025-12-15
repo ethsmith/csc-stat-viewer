@@ -1,6 +1,7 @@
 import * as React from "react";
 import { CscStats } from "../../../models/csc-stats-types";
 import { PlayerRole } from "../types";
+import { CollapsibleSection, SectionIcons } from "./CollapsibleSection";
 
 interface RoleFitScoreProps {
 	players: Array<{ name: string; stats?: CscStats }>;
@@ -154,8 +155,6 @@ const calculateRoleFit = (
 };
 
 export function RoleFitScore({ players, playerRoles, tierAverages }: RoleFitScoreProps) {
-	const [isExpanded, setIsExpanded] = React.useState(true);
-
 	const roleFits = React.useMemo(() => {
 		return players
 			.filter(p => playerRoles[p.name])
@@ -171,42 +170,27 @@ export function RoleFitScore({ players, playerRoles, tierAverages }: RoleFitScor
 
 	const mismatchCount = roleFits.filter(p => p.fitLabel === "Mismatch" || p.fitLabel === "Forced Role").length;
 
-	return (
-		<div className="mb-6 bg-gray-800 rounded-lg border border-gray-700 overflow-hidden">
-			{/* Header */}
-			<button
-				onClick={() => setIsExpanded(!isExpanded)}
-				className="w-full px-6 py-4 flex items-center hover:bg-gray-750 transition-colors"
-			>
-				<svg
-					className={`h-5 w-5 text-gray-400 transition-transform mr-3 ${isExpanded ? 'rotate-180' : ''}`}
-					fill="currentColor"
-					viewBox="0 0 20 20"
-				>
-					<path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
-				</svg>
-				<div className="flex items-center gap-3">
-					<svg className="h-6 w-6 text-purple-400" fill="currentColor" viewBox="0 0 20 20">
-						<path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-					</svg>
-					<h3 className="text-xl font-bold text-white">Role Fit Score</h3>
-					<div className="flex items-center gap-2 ml-4">
-						<span className="text-sm text-gray-400">Team Avg:</span>
-						<span className={`text-lg font-bold ${avgScore >= 70 ? 'text-green-400' : avgScore >= 50 ? 'text-yellow-400' : 'text-red-400'}`}>
-							{avgScore}%
-						</span>
-						{mismatchCount > 0 && (
-							<span className="ml-2 px-2 py-0.5 text-xs rounded bg-red-900/50 text-red-300 border border-red-700">
-								{mismatchCount} issue{mismatchCount > 1 ? 's' : ''}
-							</span>
-						)}
-					</div>
-				</div>
-			</button>
+	const headerExtra = (
+		<div className="flex items-center gap-2 ml-4">
+			<span className="text-sm text-gray-400">Team Avg:</span>
+			<span className={`text-lg font-bold ${avgScore >= 70 ? 'text-green-400' : avgScore >= 50 ? 'text-yellow-400' : 'text-red-400'}`}>
+				{avgScore}%
+			</span>
+			{mismatchCount > 0 && (
+				<span className="ml-2 px-2 py-0.5 text-xs rounded bg-red-900/50 text-red-300 border border-red-700">
+					{mismatchCount} issue{mismatchCount > 1 ? 's' : ''}
+				</span>
+			)}
+		</div>
+	);
 
-			{/* Content */}
-			{isExpanded && (
-				<div className="px-6 pb-6 pt-2">
+	return (
+		<CollapsibleSection
+			title="Role Fit Score"
+			icon={SectionIcons.roleFit}
+			headerExtra={headerExtra}
+			className="mb-6"
+		>
 					{roleFits.length === 0 ? (
 						<div className="text-center py-8 text-gray-400">
 							<p>No roles assigned. Assign roles to players to see fit scores.</p>
@@ -335,8 +319,6 @@ export function RoleFitScore({ players, playerRoles, tierAverages }: RoleFitScor
 							</div>
 						</div>
 					</div>
-				</div>
-			)}
-		</div>
+		</CollapsibleSection>
 	);
 }

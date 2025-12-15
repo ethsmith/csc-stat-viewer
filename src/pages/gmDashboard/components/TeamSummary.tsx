@@ -1,5 +1,6 @@
 import * as React from "react";
 import { CscStats } from "../../../models/csc-stats-types";
+import { CollapsibleSection, SectionIcons } from "./CollapsibleSection";
 
 interface TeamSummaryProps {
 	players: Array<{ name: string; stats?: CscStats }>;
@@ -137,8 +138,6 @@ const calculateTeamMetrics = (
 };
 
 export function TeamSummary({ players, tierAverages, playerTargets, playerRoles }: TeamSummaryProps) {
-	const [isExpanded, setIsExpanded] = React.useState(true);
-
 	const metrics = React.useMemo(
 		() => calculateTeamMetrics(players, tierAverages, playerTargets, playerRoles),
 		[players, tierAverages, playerTargets, playerRoles]
@@ -160,40 +159,25 @@ export function TeamSummary({ players, tierAverages, playerTargets, playerRoles 
 		return "text-red-400";
 	};
 
-	return (
-		<div className="mb-6 bg-gray-800 rounded-lg border border-gray-700 overflow-hidden">
-			{/* Header */}
-			<button
-				onClick={() => setIsExpanded(!isExpanded)}
-				className="w-full px-6 py-4 flex items-center justify-between hover:bg-gray-750 transition-colors"
-			>
-				<div className="flex items-center gap-3">
-					<svg className="h-6 w-6 text-blue-400" fill="currentColor" viewBox="0 0 20 20">
-						<path d="M9 6a3 3 0 11-6 0 3 3 0 016 0zM17 6a3 3 0 11-6 0 3 3 0 016 0zM12.93 17c.046-.327.07-.66.07-1a6.97 6.97 0 00-1.5-4.33A5 5 0 0119 16v1h-6.07zM6 11a5 5 0 015 5v1H1v-1a5 5 0 015-5z" />
-					</svg>
-					<h3 className="text-xl font-bold text-white">Team Summary</h3>
-					<div className="flex items-center gap-2 ml-4">
-						<span className="text-sm text-gray-400">Health:</span>
-						<span className={`text-lg font-bold ${metrics.healthColor}`}>
-							{metrics.healthScore}
-						</span>
-						<span className={`text-sm ${metrics.healthColor}`}>
-							({metrics.healthLabel})
-						</span>
-					</div>
-				</div>
-				<svg
-					className={`h-5 w-5 text-gray-400 transition-transform ${isExpanded ? 'rotate-180' : ''}`}
-					fill="currentColor"
-					viewBox="0 0 20 20"
-				>
-					<path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
-				</svg>
-			</button>
+	const headerExtra = (
+		<div className="flex items-center gap-2 ml-4">
+			<span className="text-sm text-gray-400">Health:</span>
+			<span className={`text-lg font-bold ${metrics.healthColor}`}>
+				{metrics.healthScore}
+			</span>
+			<span className={`text-sm ${metrics.healthColor}`}>
+				({metrics.healthLabel})
+			</span>
+		</div>
+	);
 
-			{/* Content */}
-			{isExpanded && (
-				<div className="px-6 pb-6 pt-2">
+	return (
+		<CollapsibleSection
+			title="Team Summary"
+			icon={SectionIcons.team}
+			headerExtra={headerExtra}
+			className="mb-6"
+		>
 					<div className="grid grid-cols-1 md:grid-cols-3 gap-6">
 						{/* Rating Performance */}
 						<div className="bg-gray-900 rounded-lg p-4 border border-gray-700">
@@ -282,8 +266,6 @@ export function TeamSummary({ players, tierAverages, playerTargets, playerRoles 
 							</div>
 						</div>
 					</div>
-				</div>
-			)}
-		</div>
+		</CollapsibleSection>
 	);
 }

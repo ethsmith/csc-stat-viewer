@@ -1,4 +1,5 @@
 import * as React from "react";
+import { CollapsibleSection, SectionIcons } from "./CollapsibleSection";
 
 // Custom scrollbar styles
 const scrollbarStyles = `
@@ -92,7 +93,6 @@ const getCategoryBadge = (category: Insight["category"]) => {
 };
 
 export function InsightsPanel({ insights, onDismiss, players = [] }: InsightsPanelProps) {
-	const [isExpanded, setIsExpanded] = React.useState(true);
 	const [filter, setFilter] = React.useState<"all" | "positive" | "negative" | "info">("all");
 	const [selectedPlayer, setSelectedPlayer] = React.useState<string>("all");
 
@@ -145,32 +145,12 @@ export function InsightsPanel({ insights, onDismiss, players = [] }: InsightsPan
 	}
 
 	return (
-		<div className="bg-gray-800 rounded-lg border border-gray-700 overflow-hidden">
-			{/* Header */}
-			<button
-				onClick={() => setIsExpanded(!isExpanded)}
-				className="w-full px-6 py-4 flex items-center justify-between hover:bg-gray-750 transition-colors"
-			>
-				<div className="flex items-center gap-3">
-					<svg className="h-6 w-6 text-blue-400" fill="currentColor" viewBox="0 0 20 20">
-						<path d="M9 2a1 1 0 000 2h2a1 1 0 100-2H9z" />
-						<path fillRule="evenodd" d="M4 5a2 2 0 012-2 3 3 0 003 3h2a3 3 0 003-3 2 2 0 012 2v11a2 2 0 01-2 2H6a2 2 0 01-2-2V5zm9.707 5.707a1 1 0 00-1.414-1.414L9 12.586l-1.293-1.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-					</svg>
-					<h3 className="text-xl font-bold text-white">Actionable Insights</h3>
-					<span className="text-sm text-gray-400">{filteredInsights.length} of {insights.length}</span>
-				</div>
-				<svg
-					className={`h-5 w-5 text-gray-400 transition-transform ${isExpanded ? 'rotate-180' : ''}`}
-					fill="currentColor"
-					viewBox="0 0 20 20"
-				>
-					<path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
-				</svg>
-			</button>
-			
-			{/* Content */}
-			{isExpanded && (
-			<div className="px-6 pb-6">
+		<CollapsibleSection
+			title="Actionable Insights"
+			icon={SectionIcons.insights}
+			headerExtra={<span className="text-sm text-gray-400">{filteredInsights.length} of {insights.length}</span>}
+		>
+			<div className="-mt-2">
 			{/* Filter buttons and player dropdown */}
 			<div className="flex items-center gap-3 mb-4">
 				<div className="flex gap-2">
@@ -285,7 +265,6 @@ export function InsightsPanel({ insights, onDismiss, players = [] }: InsightsPan
 				)}
 			</div>
 			</div>
-			)}
-		</div>
+		</CollapsibleSection>
 	);
 }
