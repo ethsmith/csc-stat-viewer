@@ -12,6 +12,7 @@ import { CscStats } from "../../models/csc-stats-types";
 import { GMSidebar } from "./components/GMSidebar";
 import { InsightsPanel, Insight } from "./components/InsightsPanel";
 import { PlayerStatCell } from "./components/PlayerStatCell";
+import { TeamSummary } from "./components/TeamSummary";
 import { PlayerTargets, PlayerRoles, PLAYER_ROLES } from "./types";
 import {
 	getPlayerTarget,
@@ -267,7 +268,7 @@ export function Dashboard() {
 
 			{/* Main Content */}
 			<div className="flex-1 overflow-auto">
-				<Container>
+				<div className="max-w-7xl mx-auto px-4 py-8 sm:px-6 lg:px-8">
 
 			{currentFranchise && currentFranchise.teams && currentFranchise.teams.length > 0 && (
 				<div className="mt-8">
@@ -318,6 +319,20 @@ export function Dashboard() {
 									players={selectedTeam.players?.map(p => p.name) || []}
 								/>
 							</div>
+
+							{/* Team Summary */}
+							<TeamSummary
+								players={selectedTeam.players?.map(player => ({
+									name: player.name,
+									stats: getPlayerStats(player.name, selectedTeam.tier.name)
+								})) || []}
+								tierAverages={{
+									rating: statsCache?.tierAverages?.[selectedTeam.tier.name as keyof typeof statsCache.tierAverages]?.rating,
+									odaR: statsCache?.tierAverages?.[selectedTeam.tier.name as keyof typeof statsCache.tierAverages]?.odaR
+								}}
+								playerTargets={parsedPlayerTargets}
+								playerRoles={parsedPlayerRoles}
+							/>
 
 							<div className="bg-gray-800 rounded-lg border border-gray-700 overflow-hidden">
 								<div className="overflow-x-auto">
@@ -435,7 +450,7 @@ export function Dashboard() {
 					)}
 				</div>
 			)}
-				</Container>
+				</div>
 			</div>
 		</div>
 	);
