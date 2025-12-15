@@ -39,6 +39,7 @@ export function Dashboard() {
 	const [playerRoles, setPlayerRoles] = useLocalStorage("playerRoles", "{}");
 	const [sectionOrder, setSectionOrder] = useLocalStorage<string>("dashboardSectionOrder", JSON.stringify(DEFAULT_SECTION_ORDER));
 	const [hiddenSections, setHiddenSections] = useLocalStorage<string>("dashboardHiddenSections", "[]");
+	const [collapsedSections, setCollapsedSections] = useLocalStorage<string>("dashboardCollapsedSections", "[]");
 	const [showHiddenMenu, setShowHiddenMenu] = React.useState(false);
 	const fileInputRef = React.useRef<HTMLInputElement>(null);
 
@@ -63,6 +64,15 @@ export function Dashboard() {
 		}
 	}, [hiddenSections]);
 
+	const parsedCollapsedSections: SectionId[] = React.useMemo(() => {
+		try {
+			const parsed = JSON.parse(collapsedSections);
+			return Array.isArray(parsed) ? parsed : [];
+		} catch {
+			return [];
+		}
+	}, [collapsedSections]);
+
 	const hideSection = (sectionId: SectionId) => {
 		const newHidden = [...parsedHiddenSections, sectionId];
 		setHiddenSections(JSON.stringify(newHidden));
@@ -72,6 +82,20 @@ export function Dashboard() {
 		const newHidden = parsedHiddenSections.filter(id => id !== sectionId);
 		setHiddenSections(JSON.stringify(newHidden));
 	};
+
+	const toggleSectionCollapse = (sectionId: SectionId, expanded: boolean) => {
+		if (expanded) {
+			// Remove from collapsed list
+			const newCollapsed = parsedCollapsedSections.filter(id => id !== sectionId);
+			setCollapsedSections(JSON.stringify(newCollapsed));
+		} else {
+			// Add to collapsed list
+			const newCollapsed = [...parsedCollapsedSections, sectionId];
+			setCollapsedSections(JSON.stringify(newCollapsed));
+		}
+	};
+
+	const isSectionExpanded = (sectionId: SectionId) => !parsedCollapsedSections.includes(sectionId);
 
 	const visibleSections = parsedSectionOrder.filter(id => !parsedHiddenSections.includes(id));
 
@@ -140,7 +164,10 @@ export function Dashboard() {
 		setPlayerTargets,
 		setPlayerRoles,
 		setSelectedStats,
-		setSelectedFranchise
+		setSelectedFranchise,
+		setSectionOrder,
+		setHiddenSections,
+		setCollapsedSections
 	);
 
 	const handleImportClick = () => {
@@ -148,7 +175,7 @@ export function Dashboard() {
 	};
 
 	const handleExport = () => {
-		handleExportSettings(selectedFranchise, playerTargets, playerRoles, selectedStats);
+		handleExportSettings(selectedFranchise, playerTargets, playerRoles, selectedStats, sectionOrder, hiddenSections, collapsedSections);
 	};
 
 	const currentFranchise = franchises.find(f => f.prefix === selectedFranchise);
@@ -444,6 +471,8 @@ export function Dashboard() {
 															insights={insights}
 															players={selectedTeam.players?.map(p => p.name) || []}
 															onHide={() => hideSection("insights")}
+															isExpanded={isSectionExpanded("insights")}
+															onToggleExpand={(expanded) => toggleSectionCollapse("insights", expanded)}
 														/>
 													</div>
 												);
@@ -458,6 +487,8 @@ export function Dashboard() {
 														playerTargets={parsedPlayerTargets}
 														playerRoles={parsedPlayerRoles}
 														onHide={() => hideSection("teamSummary")}
+														isExpanded={isSectionExpanded("teamSummary")}
+														onToggleExpand={(expanded) => toggleSectionCollapse("teamSummary", expanded)}
 													/>
 												);
 											case "roleFitScore":
@@ -470,6 +501,8 @@ export function Dashboard() {
 														playerRoles={parsedPlayerRoles}
 														tierAverages={tierAverages}
 														onHide={() => hideSection("roleFitScore")}
+														isExpanded={isSectionExpanded("roleFitScore")}
+														onToggleExpand={(expanded) => toggleSectionCollapse("roleFitScore", expanded)}
 													/>
 												);
 											case "playerTable":

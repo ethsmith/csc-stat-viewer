@@ -8,6 +8,8 @@ interface TeamSummaryProps {
 	playerTargets: Record<string, Record<string, number>>;
 	playerRoles: Record<string, string>;
 	onHide?: () => void;
+	isExpanded?: boolean;
+	onToggleExpand?: (expanded: boolean) => void;
 }
 
 interface TeamMetrics {
@@ -138,7 +140,7 @@ const calculateTeamMetrics = (
 	};
 };
 
-export function TeamSummary({ players, tierAverages, playerTargets, playerRoles, onHide }: TeamSummaryProps) {
+export function TeamSummary({ players, tierAverages, playerTargets, playerRoles, onHide, isExpanded, onToggleExpand }: TeamSummaryProps) {
 	const metrics = React.useMemo(
 		() => calculateTeamMetrics(players, tierAverages, playerTargets, playerRoles),
 		[players, tierAverages, playerTargets, playerRoles]
@@ -179,6 +181,8 @@ export function TeamSummary({ players, tierAverages, playerTargets, playerRoles,
 			headerExtra={headerExtra}
 			className="mb-6"
 			onHide={onHide}
+			isExpanded={isExpanded}
+			onToggleExpand={onToggleExpand}
 		>
 					<div className="grid grid-cols-1 md:grid-cols-3 gap-6">
 						{/* Rating Performance */}

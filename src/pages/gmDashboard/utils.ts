@@ -56,15 +56,21 @@ export const handleExportSettings = (
 	selectedFranchise: string,
 	playerTargets: string,
 	playerRoles: string,
-	selectedStats: string
+	selectedStats: string,
+	sectionOrder?: string,
+	hiddenSections?: string,
+	collapsedSections?: string
 ) => {
 	const exportData = {
 		franchise: selectedFranchise,
 		playerTargets: playerTargets,
 		playerRoles: playerRoles,
 		selectedTargetStats: selectedStats,
+		sectionOrder: sectionOrder,
+		hiddenSections: hiddenSections,
+		collapsedSections: collapsedSections,
 		exportDate: new Date().toISOString(),
-		version: "1.0"
+		version: "1.2"
 	};
 
 	const dataStr = JSON.stringify(exportData, null, 2);
@@ -83,7 +89,10 @@ export const createImportHandler = (
 	setPlayerTargets: (value: string) => void,
 	setPlayerRoles: (value: string) => void,
 	setSelectedStats: (value: string) => void,
-	setSelectedFranchise?: (value: string) => void
+	setSelectedFranchise?: (value: string) => void,
+	setSectionOrder?: (value: string) => void,
+	setHiddenSections?: (value: string) => void,
+	setCollapsedSections?: (value: string) => void
 ) => {
 	return (event: React.ChangeEvent<HTMLInputElement>) => {
 		const file = event.target.files?.[0];
@@ -106,6 +115,15 @@ export const createImportHandler = (
 				}
 				if (importData.selectedTargetStats) {
 					setSelectedStats(importData.selectedTargetStats);
+				}
+				if (importData.sectionOrder && setSectionOrder) {
+					setSectionOrder(importData.sectionOrder);
+				}
+				if (importData.hiddenSections && setHiddenSections) {
+					setHiddenSections(importData.hiddenSections);
+				}
+				if (importData.collapsedSections && setCollapsedSections) {
+					setCollapsedSections(importData.collapsedSections);
 				}
 
 				alert('Settings imported successfully!');

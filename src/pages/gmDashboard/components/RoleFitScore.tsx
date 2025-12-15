@@ -8,6 +8,8 @@ interface RoleFitScoreProps {
 	playerRoles: Record<string, string>;
 	tierAverages: { rating?: number; odaR?: number; impact?: number };
 	onHide?: () => void;
+	isExpanded?: boolean;
+	onToggleExpand?: (expanded: boolean) => void;
 }
 
 interface PlayerRoleFit {
@@ -155,7 +157,7 @@ const calculateRoleFit = (
 	};
 };
 
-export function RoleFitScore({ players, playerRoles, tierAverages, onHide }: RoleFitScoreProps) {
+export function RoleFitScore({ players, playerRoles, tierAverages, onHide, isExpanded, onToggleExpand }: RoleFitScoreProps) {
 	const roleFits = React.useMemo(() => {
 		return players
 			.filter(p => playerRoles[p.name])
@@ -192,6 +194,8 @@ export function RoleFitScore({ players, playerRoles, tierAverages, onHide }: Rol
 			headerExtra={headerExtra}
 			className="mb-6"
 			onHide={onHide}
+			isExpanded={isExpanded}
+			onToggleExpand={onToggleExpand}
 		>
 					{roleFits.length === 0 ? (
 						<div className="text-center py-8 text-gray-400">

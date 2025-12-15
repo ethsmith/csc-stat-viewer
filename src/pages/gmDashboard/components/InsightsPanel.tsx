@@ -34,6 +34,8 @@ interface InsightsPanelProps {
 	onDismiss?: (index: number) => void;
 	players?: string[];
 	onHide?: () => void;
+	isExpanded?: boolean;
+	onToggleExpand?: (expanded: boolean) => void;
 }
 
 const getInsightIcon = (type: Insight["type"]) => {
@@ -93,7 +95,7 @@ const getCategoryBadge = (category: Insight["category"]) => {
 	);
 };
 
-export function InsightsPanel({ insights, onDismiss, players = [], onHide }: InsightsPanelProps) {
+export function InsightsPanel({ insights, onDismiss, players = [], onHide, isExpanded, onToggleExpand }: InsightsPanelProps) {
 	const [filter, setFilter] = React.useState<"all" | "positive" | "negative" | "info">("all");
 	const [selectedPlayer, setSelectedPlayer] = React.useState<string>("all");
 
@@ -151,6 +153,8 @@ export function InsightsPanel({ insights, onDismiss, players = [], onHide }: Ins
 			icon={SectionIcons.insights}
 			headerExtra={<span className="text-sm text-gray-400">{filteredInsights.length} of {insights.length}</span>}
 			onHide={onHide}
+			isExpanded={isExpanded}
+			onToggleExpand={onToggleExpand}
 		>
 			<div className="-mt-2">
 			{/* Filter buttons and player dropdown */}

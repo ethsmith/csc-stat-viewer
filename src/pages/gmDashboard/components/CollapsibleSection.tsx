@@ -6,6 +6,8 @@ interface CollapsibleSectionProps {
 	iconColor?: string;
 	headerExtra?: React.ReactNode;
 	defaultExpanded?: boolean;
+	isExpanded?: boolean;
+	onToggleExpand?: (expanded: boolean) => void;
 	children: React.ReactNode;
 	className?: string;
 	onHide?: () => void;
@@ -16,18 +18,32 @@ export function CollapsibleSection({
 	icon,
 	headerExtra,
 	defaultExpanded = true,
+	isExpanded: controlledExpanded,
+	onToggleExpand,
 	children,
 	className = "",
 	onHide,
 }: CollapsibleSectionProps) {
-	const [isExpanded, setIsExpanded] = React.useState(defaultExpanded);
+	const [internalExpanded, setInternalExpanded] = React.useState(defaultExpanded);
+	
+	// Use controlled state if provided, otherwise use internal state
+	const isExpanded = controlledExpanded !== undefined ? controlledExpanded : internalExpanded;
+	
+	const handleToggle = () => {
+		const newValue = !isExpanded;
+		if (onToggleExpand) {
+			onToggleExpand(newValue);
+		} else {
+			setInternalExpanded(newValue);
+		}
+	};
 
 	return (
 		<div className={`bg-gray-800 rounded-lg border border-gray-700 overflow-hidden ${className}`}>
 			{/* Header */}
 			<div className="flex items-center">
 				<button
-					onClick={() => setIsExpanded(!isExpanded)}
+					onClick={handleToggle}
 					className="flex-1 px-6 py-4 flex items-center hover:bg-gray-750 transition-colors"
 				>
 					<svg
