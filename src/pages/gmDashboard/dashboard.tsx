@@ -10,6 +10,8 @@ import { Link } from "wouter";
 import { franchiseImages } from "../../common/images/franchise";
 import { CscStats } from "../../models/csc-stats-types";
 import { GMSidebar } from "./components/GMSidebar";
+import { InsightsPanel, Insight } from "./components/InsightsPanel";
+import { PlayerStatCell } from "./components/PlayerStatCell";
 import { PlayerTargets, PlayerRoles, PLAYER_ROLES } from "./types";
 import {
 	getPlayerTarget,
@@ -18,6 +20,7 @@ import {
 	handleExportSettings,
 	createImportHandler
 } from "./utils";
+import { generateInsights } from "./insightsEngine";
 
 const getFranchiseImage = (prefix: string): string => {
 	return franchiseImages[prefix] || "";
@@ -115,6 +118,41 @@ export function Dashboard() {
 			return {};
 		}
 	}, [playerRoles]);
+
+	// Generate insights for the selected team
+	const insights: Insight[] = React.useMemo(() => {
+		if (!selectedTeam || !selectedTeam.players || !statsCache) return [];
+
+		const teamData = {
+			players: selectedTeam.players.map(player => {
+				const playerStats = getPlayerStats(player.name, selectedTeam.tier.name);
+				const target: Record<string, number> = {};
+				
+				parsedSelectedStats.forEach(statKey => {
+					const targetValue = getPlayerTarget(
+						parsedPlayerTargets,
+						statsCache,
+						player.name,
+						statKey,
+						selectedTeam.tier.name
+					);
+					if (targetValue !== undefined) {
+						target[statKey] = targetValue;
+					}
+				});
+
+				return {
+					name: player.name,
+					stats: playerStats || ({} as CscStats),
+					role: parsedPlayerRoles[player.name],
+					target
+				};
+			}),
+			tierName: selectedTeam.tier.name
+		};
+
+		return generateInsights(teamData, parsedPlayerTargets, parsedPlayerRoles, parsedSelectedStats);
+	}, [selectedTeam, statsCache, parsedPlayerTargets, parsedPlayerRoles, parsedSelectedStats]);
 
 	if (isLoading || isLoadingStats) {
 		return (
@@ -273,6 +311,11 @@ export function Dashboard() {
 								</div>
 							</div>
 
+							{/* Actionable Insights Panel */}
+							<div className="mb-6">
+								<InsightsPanel insights={insights} />
+							</div>
+
 							<div className="bg-gray-800 rounded-lg border border-gray-700 overflow-hidden">
 								<div className="overflow-x-auto">
 									<table className="w-full">
@@ -311,15 +354,21 @@ export function Dashboard() {
 																<div className="text-sm text-gray-300">{player.mmr}</div>
 															</td>
 															{parsedSelectedStats.map(statKey => {
-																const currentValue = playerStats?.[statKey as keyof CscStats] as number | undefined;
+																const playerStat = getPlayerStats(player.name, selectedTeam.tier.name);
+																const currentValue = playerStat?.[statKey as keyof CscStats] as number | undefined;
 																const targetValue = getPlayerTarget(parsedPlayerTargets, statsCache, player.name, statKey, selectedTeam.tier.name);
 																const statColor = getStatColor(currentValue, targetValue, statKey);
+																
 																return (
-																	<td key={`${player.name}-${statKey}`} className="px-4 py-4 whitespace-nowrap">
-																		<div className={`text-sm font-semibold ${statColor}`}>
-																			{currentValue !== undefined ? currentValue.toFixed(2) : "N/A"}
-																		</div>
-																	</td>
+																	<PlayerStatCell
+																		key={`${player.name}-${statKey}`}
+																		playerName={player.name}
+																		playerSteam64Id={player.steam64Id}
+																		statKey={statKey}
+																		currentValue={currentValue}
+																		statColor={statColor}
+																		season={season}
+																	/>
 																);
 															})}
 															<td className="px-6 py-4 whitespace-nowrap">
