@@ -33,6 +33,7 @@ interface InsightsPanelProps {
 	insights: Insight[];
 	onDismiss?: (index: number) => void;
 	players?: string[];
+	onHide?: () => void;
 }
 
 const getInsightIcon = (type: Insight["type"]) => {
@@ -92,7 +93,7 @@ const getCategoryBadge = (category: Insight["category"]) => {
 	);
 };
 
-export function InsightsPanel({ insights, onDismiss, players = [] }: InsightsPanelProps) {
+export function InsightsPanel({ insights, onDismiss, players = [], onHide }: InsightsPanelProps) {
 	const [filter, setFilter] = React.useState<"all" | "positive" | "negative" | "info">("all");
 	const [selectedPlayer, setSelectedPlayer] = React.useState<string>("all");
 
@@ -149,6 +150,7 @@ export function InsightsPanel({ insights, onDismiss, players = [] }: InsightsPan
 			title="Actionable Insights"
 			icon={SectionIcons.insights}
 			headerExtra={<span className="text-sm text-gray-400">{filteredInsights.length} of {insights.length}</span>}
+			onHide={onHide}
 		>
 			<div className="-mt-2">
 			{/* Filter buttons and player dropdown */}

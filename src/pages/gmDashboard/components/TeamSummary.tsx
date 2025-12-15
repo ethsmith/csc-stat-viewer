@@ -7,6 +7,7 @@ interface TeamSummaryProps {
 	tierAverages: { rating?: number; odaR?: number };
 	playerTargets: Record<string, Record<string, number>>;
 	playerRoles: Record<string, string>;
+	onHide?: () => void;
 }
 
 interface TeamMetrics {
@@ -137,7 +138,7 @@ const calculateTeamMetrics = (
 	};
 };
 
-export function TeamSummary({ players, tierAverages, playerTargets, playerRoles }: TeamSummaryProps) {
+export function TeamSummary({ players, tierAverages, playerTargets, playerRoles, onHide }: TeamSummaryProps) {
 	const metrics = React.useMemo(
 		() => calculateTeamMetrics(players, tierAverages, playerTargets, playerRoles),
 		[players, tierAverages, playerTargets, playerRoles]
@@ -177,6 +178,7 @@ export function TeamSummary({ players, tierAverages, playerTargets, playerRoles 
 			icon={SectionIcons.team}
 			headerExtra={headerExtra}
 			className="mb-6"
+			onHide={onHide}
 		>
 					<div className="grid grid-cols-1 md:grid-cols-3 gap-6">
 						{/* Rating Performance */}

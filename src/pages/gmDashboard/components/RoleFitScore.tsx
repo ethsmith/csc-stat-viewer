@@ -7,6 +7,7 @@ interface RoleFitScoreProps {
 	players: Array<{ name: string; stats?: CscStats }>;
 	playerRoles: Record<string, string>;
 	tierAverages: { rating?: number; odaR?: number; impact?: number };
+	onHide?: () => void;
 }
 
 interface PlayerRoleFit {
@@ -154,7 +155,7 @@ const calculateRoleFit = (
 	};
 };
 
-export function RoleFitScore({ players, playerRoles, tierAverages }: RoleFitScoreProps) {
+export function RoleFitScore({ players, playerRoles, tierAverages, onHide }: RoleFitScoreProps) {
 	const roleFits = React.useMemo(() => {
 		return players
 			.filter(p => playerRoles[p.name])
@@ -190,6 +191,7 @@ export function RoleFitScore({ players, playerRoles, tierAverages }: RoleFitScor
 			icon={SectionIcons.roleFit}
 			headerExtra={headerExtra}
 			className="mb-6"
+			onHide={onHide}
 		>
 					{roleFits.length === 0 ? (
 						<div className="text-center py-8 text-gray-400">
