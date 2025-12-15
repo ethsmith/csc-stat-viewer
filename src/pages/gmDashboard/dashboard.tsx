@@ -9,25 +9,15 @@ import { useCachedCscSeasonAndTiers } from "../../dao/cscSeasonAndTiersDao";
 import { Link } from "wouter";
 import { franchiseImages } from "../../common/images/franchise";
 import { CscStats } from "../../models/csc-stats-types";
-
-type PlayerTargets = Record<string, Record<string, number>>;
-type PlayerRoles = Record<string, string>;
-type PlayerRole = "IGL" | "AWPER" | "ENTRY" | "SUPPORT" | "RIFLER" | "LURKER";
-
-const AVAILABLE_STATS: { key: keyof CscStats; label: string }[] = [
-	{ key: "rating", label: "Rating" },
-	{ key: "kr", label: "K/R" },
-	{ key: "adr", label: "ADR" },
-	{ key: "kast", label: "KAST" },
-	{ key: "impact", label: "Impact" },
-	{ key: "hs", label: "HS%" },
-	{ key: "clutchR", label: "Clutch" },
-	{ key: "awpR", label: "AWP K/R" },
-	{ key: "odr", label: "OD%" },
-	{ key: "odaR", label: "ODA/R" },
-];
-
-const PLAYER_ROLES: PlayerRole[] = ["IGL", "AWPER", "ENTRY", "SUPPORT", "RIFLER", "LURKER"];
+import { GMSidebar } from "./components/GMSidebar";
+import { PlayerTargets, PlayerRoles, PLAYER_ROLES } from "./types";
+import {
+	getPlayerTarget,
+	getStatColor,
+	getStatLabel,
+	handleExportSettings,
+	createImportHandler
+} from "./utils";
 
 const getFranchiseImage = (prefix: string): string => {
 	return franchiseImages[prefix] || "";
@@ -71,44 +61,19 @@ export function Dashboard() {
 		setSelectedFranchise("");
 	};
 
-	const handleImportSettings = (event: React.ChangeEvent<HTMLInputElement>) => {
-		const file = event.target.files?.[0];
-		if (!file) return;
-
-		const reader = new FileReader();
-		reader.onload = (e) => {
-			try {
-				const content = e.target?.result as string;
-				const importData = JSON.parse(content);
-
-				if (importData.franchise) {
-					setSelectedFranchise(importData.franchise);
-				}
-				if (importData.playerTargets) {
-					setPlayerTargets(importData.playerTargets);
-				}
-				if (importData.playerRoles) {
-					setPlayerRoles(importData.playerRoles);
-				}
-				if (importData.selectedTargetStats) {
-					setSelectedStats(importData.selectedTargetStats);
-				}
-
-				alert('Settings imported successfully!');
-			} catch (error) {
-				alert('Error importing settings. Please check the file format.');
-				console.error('Import error:', error);
-			}
-		};
-		reader.readAsText(file);
-
-		if (event.target) {
-			event.target.value = '';
-		}
-	};
+	const handleImportSettings = createImportHandler(
+		setPlayerTargets,
+		setPlayerRoles,
+		setSelectedStats,
+		setSelectedFranchise
+	);
 
 	const handleImportClick = () => {
 		fileInputRef.current?.click();
+	};
+
+	const handleExport = () => {
+		handleExportSettings(selectedFranchise, playerTargets, playerRoles, selectedStats);
 	};
 
 	const currentFranchise = franchises.find(f => f.prefix === selectedFranchise);
@@ -150,65 +115,6 @@ export function Dashboard() {
 			return {};
 		}
 	}, [playerRoles]);
-
-	const getTierAverage = (tierName: string, statKey: string): number | undefined => {
-		const tierStats = statsCache?.data?.[tierName as keyof typeof statsCache.data];
-		if (!tierStats || tierStats.length === 0) return undefined;
-		
-		const validValues = tierStats
-			.map(stat => stat[statKey as keyof CscStats] as number | undefined)
-			.filter((val): val is number => val !== undefined && !isNaN(val));
-		
-		if (validValues.length === 0) return undefined;
-		
-		const sum = validValues.reduce((acc, val) => acc + val, 0);
-		return sum / validValues.length;
-	};
-
-	const getPlayerTarget = (playerName: string, statKey: string, tierName: string): number | undefined => {
-		const playerTargetData = parsedPlayerTargets[playerName];
-		if (playerTargetData && playerTargetData[statKey] !== undefined) {
-			return playerTargetData[statKey];
-		}
-		return getTierAverage(tierName, statKey);
-	};
-
-	const getStatColor = (currentValue: number | undefined, targetValue: number | undefined, statKey: string) => {
-		if (!currentValue || !targetValue) return "text-gray-300";
-		const diff = currentValue - targetValue;
-		const threshold = statKey === "rating" ? 0.03 : targetValue * 0.05;
-		if (diff > threshold) return "text-green-400";
-		if (diff >= 0) return "text-blue-400";
-		if (diff >= -threshold) return "text-yellow-400";
-		return "text-red-400";
-	};
-
-	const getStatLabel = (statKey: string): string => {
-		const stat = AVAILABLE_STATS.find(s => s.key === statKey);
-		return stat?.label || statKey;
-	};
-
-	const handleExportSettings = () => {
-		const exportData = {
-			franchise: selectedFranchise,
-			playerTargets: playerTargets,
-			playerRoles: playerRoles,
-			selectedTargetStats: selectedStats,
-			exportDate: new Date().toISOString(),
-			version: "1.0"
-		};
-
-		const dataStr = JSON.stringify(exportData, null, 2);
-		const dataBlob = new Blob([dataStr], { type: 'application/json' });
-		const url = URL.createObjectURL(dataBlob);
-		const link = document.createElement('a');
-		link.href = url;
-		link.download = `gm-targets-${selectedFranchise}-${new Date().toISOString().split('T')[0]}.json`;
-		document.body.appendChild(link);
-		link.click();
-		document.body.removeChild(link);
-		URL.revokeObjectURL(url);
-	};
 
 	if (isLoading || isLoadingStats) {
 		return (
@@ -310,91 +216,20 @@ export function Dashboard() {
 	}
 
 	return (
-		<Container>
-			<div className="flex justify-between items-center mb-8">
-				<div className="flex items-center gap-6">
-					{currentFranchise && (
-						<img
-							src={getFranchiseImage(currentFranchise.prefix)}
-							alt={currentFranchise.name}
-							className="w-20 h-20 object-contain"
-							onError={(e) => {
-								(e.target as HTMLImageElement).style.display = 'none';
-							}}
-						/>
-					)}
-					<div>
-						<h2 className="text-3xl font-bold">Franchise Dashboard</h2>
-						{currentFranchise && (
-							<p className="mt-2 text-gray-300">
-								Managing: <span className="font-semibold text-blue-400">{currentFranchise.name}</span>
-							</p>
-						)}
-					</div>
-				</div>
-				<div className="flex gap-3">
-					<button
-						onClick={handleExportSettings}
-						className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg transition-colors flex items-center gap-2"
-						title="Export targets and settings"
-					>
-						<svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-							<path fillRule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clipRule="evenodd" />
-						</svg>
-						Export
-					</button>
-					<button
-						onClick={handleImportClick}
-						className="px-4 py-2 bg-green-600 hover:bg-green-500 text-white rounded-lg transition-colors flex items-center gap-2"
-						title="Import targets and settings"
-					>
-						<svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-							<path fillRule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zM6.293 6.707a1 1 0 010-1.414l3-3a1 1 0 011.414 0l3 3a1 1 0 01-1.414 1.414L11 5.414V13a1 1 0 11-2 0V5.414L7.707 6.707a1 1 0 01-1.414 0z" clipRule="evenodd" />
-						</svg>
-						Import
-					</button>
-					<Link href="/dashboard/targets">
-						<button className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg transition-colors">
-							Set Targets
-						</button>
-					</Link>
-					<button
-						onClick={handleClearFranchise}
-						className="px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded-lg transition-colors"
-					>
-						Change Franchise
-					</button>
-				</div>
-			</div>
+		<div className="flex h-screen bg-gray-900">
+			<GMSidebar
+				currentFranchise={currentFranchise}
+				currentPage="dashboard"
+				onExport={handleExport}
+				onImport={handleImportClick}
+				onChangeFranchise={handleClearFranchise}
+				fileInputRef={fileInputRef}
+				onFileChange={handleImportSettings}
+			/>
 
-			<div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
-				<div className="p-6 bg-gray-800 rounded-lg border border-gray-700">
-					<h3 className="text-xl font-bold mb-2">Teams</h3>
-					<p className="text-3xl font-bold text-blue-400">{currentFranchise?.teams?.length || 0}</p>
-				</div>
-
-				<div className="p-6 bg-gray-800 rounded-lg border border-gray-700">
-					<h3 className="text-xl font-bold mb-2">Total Players</h3>
-					<p className="text-3xl font-bold text-green-400">
-						{currentFranchise?.teams?.reduce((acc, team) => acc + (team.players?.length || 0), 0) || 0}
-					</p>
-				</div>
-
-				<div className="p-6 bg-gray-800 rounded-lg border border-gray-700">
-					<h3 className="text-xl font-bold mb-2">General Manager</h3>
-					<p className="text-lg text-gray-300">{currentFranchise?.gm?.name || "N/A"}</p>
-					{currentFranchise?.agms && currentFranchise.agms.length > 0 && (
-						<div className="mt-3">
-							<p className="text-sm text-gray-400 mb-1">Assistant GMs:</p>
-							<div className="space-y-1">
-								{currentFranchise.agms.map((agm, index) => (
-									<p key={index} className="text-sm text-gray-300">{agm.name}</p>
-								))}
-							</div>
-						</div>
-					)}
-				</div>
-			</div>
+			{/* Main Content */}
+			<div className="flex-1 overflow-auto">
+				<Container>
 
 			{currentFranchise && currentFranchise.teams && currentFranchise.teams.length > 0 && (
 				<div className="mt-8">
@@ -477,7 +312,7 @@ export function Dashboard() {
 															</td>
 															{parsedSelectedStats.map(statKey => {
 																const currentValue = playerStats?.[statKey as keyof CscStats] as number | undefined;
-																const targetValue = getPlayerTarget(player.name, statKey, selectedTeam.tier.name);
+																const targetValue = getPlayerTarget(parsedPlayerTargets, statsCache, player.name, statKey, selectedTeam.tier.name);
 																const statColor = getStatColor(currentValue, targetValue, statKey);
 																return (
 																	<td key={`${player.name}-${statKey}`} className="px-4 py-4 whitespace-nowrap">
@@ -548,6 +383,8 @@ export function Dashboard() {
 					)}
 				</div>
 			)}
-		</Container>
+				</Container>
+			</div>
+		</div>
 	);
 }
