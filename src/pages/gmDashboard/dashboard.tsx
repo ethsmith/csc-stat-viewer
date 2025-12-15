@@ -313,7 +313,10 @@ export function Dashboard() {
 
 							{/* Actionable Insights Panel */}
 							<div className="mb-6">
-								<InsightsPanel insights={insights} />
+								<InsightsPanel 
+									insights={insights}
+									players={selectedTeam.players?.map(p => p.name) || []}
+								/>
 							</div>
 
 							<div className="bg-gray-800 rounded-lg border border-gray-700 overflow-hidden">

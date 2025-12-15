@@ -1,5 +1,26 @@
 import * as React from "react";
 
+// Custom scrollbar styles
+const scrollbarStyles = `
+.custom-scrollbar::-webkit-scrollbar {
+	width: 8px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-track {
+	background: #1F2937;
+	border-radius: 4px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb {
+	background: #4B5563;
+	border-radius: 4px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+	background: #6B7280;
+}
+`;
+
 export interface Insight {
 	type: "warning" | "info" | "success" | "critical";
 	playerName?: string;
@@ -10,6 +31,7 @@ export interface Insight {
 interface InsightsPanelProps {
 	insights: Insight[];
 	onDismiss?: (index: number) => void;
+	players?: string[];
 }
 
 const getInsightIcon = (type: Insight["type"]) => {
@@ -69,7 +91,41 @@ const getCategoryBadge = (category: Insight["category"]) => {
 	);
 };
 
-export function InsightsPanel({ insights, onDismiss }: InsightsPanelProps) {
+export function InsightsPanel({ insights, onDismiss, players = [] }: InsightsPanelProps) {
+	const [filter, setFilter] = React.useState<"all" | "positive" | "negative" | "info">("all");
+	const [selectedPlayer, setSelectedPlayer] = React.useState<string>("all");
+
+	// Inject scrollbar styles
+	React.useEffect(() => {
+		const styleId = 'insights-scrollbar-styles';
+		if (!document.getElementById(styleId)) {
+			const style = document.createElement('style');
+			style.id = styleId;
+			style.textContent = scrollbarStyles;
+			document.head.appendChild(style);
+		}
+	}, []);
+
+	const filteredInsights = React.useMemo(() => {
+		let filtered = insights;
+		
+		// Filter by type
+		if (filter === "positive") {
+			filtered = filtered.filter(i => i.type === "success");
+		} else if (filter === "negative") {
+			filtered = filtered.filter(i => i.type === "critical" || i.type === "warning");
+		} else if (filter === "info") {
+			filtered = filtered.filter(i => i.type === "info");
+		}
+		
+		// Filter by player
+		if (selectedPlayer !== "all") {
+			filtered = filtered.filter(i => i.playerName === selectedPlayer);
+		}
+		
+		return filtered;
+	}, [insights, filter, selectedPlayer]);
+
 	if (insights.length === 0) {
 		return (
 			<div className="p-6 bg-gray-800 rounded-lg border border-gray-700">
@@ -95,11 +151,89 @@ export function InsightsPanel({ insights, onDismiss }: InsightsPanelProps) {
 					<path fillRule="evenodd" d="M4 5a2 2 0 012-2 3 3 0 003 3h2a3 3 0 003-3 2 2 0 012 2v11a2 2 0 01-2 2H6a2 2 0 01-2-2V5zm9.707 5.707a1 1 0 00-1.414-1.414L9 12.586l-1.293-1.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
 				</svg>
 				<h3 className="text-xl font-bold text-white">Actionable Insights</h3>
-				<span className="ml-auto text-sm text-gray-400">{insights.length} insights</span>
+				<span className="ml-auto text-sm text-gray-400">{filteredInsights.length} of {insights.length}</span>
 			</div>
 			
-			<div className="space-y-3 max-h-96 overflow-y-auto">
-				{insights.map((insight, index) => (
+			{/* Filter buttons and player dropdown */}
+			<div className="flex items-center gap-3 mb-4">
+				<div className="flex gap-2">
+					<button
+						onClick={() => setFilter("all")}
+						className={`px-3 py-1.5 text-sm font-medium rounded transition-colors ${
+							filter === "all"
+								? "bg-blue-600 text-white"
+								: "bg-gray-700 text-gray-300 hover:bg-gray-600"
+						}`}
+					>
+						All
+					</button>
+					<button
+						onClick={() => setFilter("positive")}
+						className={`px-3 py-1.5 text-sm font-medium rounded transition-colors ${
+							filter === "positive"
+								? "bg-green-600 text-white"
+								: "bg-gray-700 text-gray-300 hover:bg-gray-600"
+						}`}
+					>
+						Positive
+					</button>
+					<button
+						onClick={() => setFilter("negative")}
+						className={`px-3 py-1.5 text-sm font-medium rounded transition-colors ${
+							filter === "negative"
+								? "bg-red-600 text-white"
+								: "bg-gray-700 text-gray-300 hover:bg-gray-600"
+						}`}
+					>
+						Negative
+					</button>
+					<button
+						onClick={() => setFilter("info")}
+						className={`px-3 py-1.5 text-sm font-medium rounded transition-colors ${
+							filter === "info"
+								? "bg-blue-600 text-white"
+								: "bg-gray-700 text-gray-300 hover:bg-gray-600"
+						}`}
+					>
+						Info
+					</button>
+				</div>
+				
+				{/* Player filter dropdown */}
+				{players.length > 0 && (
+					<div className="ml-auto flex items-center gap-2">
+						<label className="text-sm font-medium text-gray-300 whitespace-nowrap">
+							Player:
+						</label>
+						<select
+							value={selectedPlayer}
+							onChange={(e) => setSelectedPlayer(e.target.value)}
+							className="px-3 py-1.5 bg-gray-700 border border-gray-600 rounded text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent min-w-[150px]"
+						>
+							<option value="all">All Players</option>
+							{players.map(player => (
+								<option key={player} value={player}>
+									{player}
+								</option>
+							))}
+						</select>
+					</div>
+				)}
+			</div>
+			
+			<div 
+				className="space-y-3 max-h-96 overflow-y-auto custom-scrollbar"
+				style={{
+					scrollbarWidth: 'thin',
+					scrollbarColor: '#4B5563 #1F2937'
+				}}
+			>
+				{filteredInsights.length === 0 ? (
+					<div className="text-center py-8 text-gray-400">
+						<p>No insights match the selected filter.</p>
+					</div>
+				) : (
+					filteredInsights.map((insight, index) => (
 					<div
 						key={index}
 						className={`p-4 rounded-lg border flex items-start gap-3 ${getInsightColor(insight.type)}`}
@@ -130,7 +264,8 @@ export function InsightsPanel({ insights, onDismiss }: InsightsPanelProps) {
 							</button>
 						)}
 					</div>
-				))}
+				))
+				)}
 			</div>
 		</div>
 	);
