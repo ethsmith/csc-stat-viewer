@@ -1,0 +1,160 @@
+import * as React from "react";
+import { Link } from "wouter";
+import { Franchise } from "../../../models/franchise-types";
+import { franchiseImages } from "../../../common/images/franchise";
+
+interface GMSidebarProps {
+	currentFranchise: Franchise | undefined;
+	currentPage: "dashboard" | "targets";
+	onExport: () => void;
+	onImport: () => void;
+	onChangeFranchise: () => void;
+	fileInputRef: React.RefObject<HTMLInputElement | null>;
+	onFileChange: (event: React.ChangeEvent<HTMLInputElement>) => void;
+}
+
+const getFranchiseImage = (prefix: string): string => {
+	return franchiseImages[prefix] || "";
+};
+
+export function GMSidebar({
+	currentFranchise,
+	currentPage,
+	onExport,
+	onImport,
+	onChangeFranchise,
+	fileInputRef,
+	onFileChange
+}: GMSidebarProps) {
+	return (
+		<div className="w-64 bg-gray-800 border-r border-gray-700 flex flex-col">
+			{/* Franchise Header */}
+			<div className="p-6 border-b border-gray-700">
+				<div className="flex items-center gap-3 mb-2">
+					{currentFranchise && (
+						<img
+							src={getFranchiseImage(currentFranchise.prefix)}
+							alt={currentFranchise.name}
+							className="w-12 h-12 object-contain"
+							onError={(e) => {
+								(e.target as HTMLImageElement).style.display = 'none';
+							}}
+						/>
+					)}
+					<div className="flex-1">
+						<h3 className="font-bold text-white text-sm">GM Dashboard</h3>
+						{currentFranchise && (
+							<p className="text-xs text-gray-400 truncate">{currentFranchise.name}</p>
+						)}
+					</div>
+				</div>
+			</div>
+
+			{/* Navigation */}
+			<nav className="flex-1 p-4 space-y-2">
+				<Link href="/dashboard">
+					<button className={`w-full flex items-center gap-3 px-4 py-3 text-left rounded-lg transition-colors ${
+						currentPage === "dashboard"
+							? "text-white bg-blue-600 hover:bg-blue-500"
+							: "text-gray-300 hover:text-white hover:bg-gray-700"
+					}`}>
+						<svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+							<path d="M10.707 2.293a1 1 0 00-1.414 0l-7 7a1 1 0 001.414 1.414L4 10.414V17a1 1 0 001 1h2a1 1 0 001-1v-2a1 1 0 011-1h2a1 1 0 011 1v2a1 1 0 001 1h2a1 1 0 001-1v-6.586l.293.293a1 1 0 001.414-1.414l-7-7z" />
+						</svg>
+						<span className="font-medium">Dashboard</span>
+					</button>
+				</Link>
+
+				<Link href="/dashboard/targets">
+					<button className={`w-full flex items-center gap-3 px-4 py-3 text-left rounded-lg transition-colors ${
+						currentPage === "targets"
+							? "text-white bg-blue-600 hover:bg-blue-500"
+							: "text-gray-300 hover:text-white hover:bg-gray-700"
+					}`}>
+						<svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+							<path d="M10 12a2 2 0 100-4 2 2 0 000 4z" />
+							<path fillRule="evenodd" d="M.458 10C1.732 5.943 5.522 3 10 3s8.268 2.943 9.542 7c-1.274 4.057-5.064 7-9.542 7S1.732 14.057.458 10zM14 10a4 4 0 11-8 0 4 4 0 018 0z" clipRule="evenodd" />
+						</svg>
+						<span className="font-medium">Set Targets</span>
+					</button>
+				</Link>
+
+				<div className="pt-4 mt-4 border-t border-gray-700 space-y-2">
+					<button
+						onClick={onExport}
+						className="w-full flex items-center gap-3 px-4 py-3 text-left text-gray-300 hover:text-white hover:bg-gray-700 rounded-lg transition-colors"
+					>
+						<svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+							<path fillRule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clipRule="evenodd" />
+						</svg>
+						<span className="font-medium">Export Settings</span>
+					</button>
+
+					<button
+						onClick={onImport}
+						className="w-full flex items-center gap-3 px-4 py-3 text-left text-gray-300 hover:text-white hover:bg-gray-700 rounded-lg transition-colors"
+					>
+						<svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+							<path fillRule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zM6.293 6.707a1 1 0 010-1.414l3-3a1 1 0 011.414 0l3 3a1 1 0 01-1.414 1.414L11 5.414V13a1 1 0 11-2 0V5.414L7.707 6.707a1 1 0 01-1.414 0z" clipRule="evenodd" />
+						</svg>
+						<span className="font-medium">Import Settings</span>
+					</button>
+					<input
+						ref={fileInputRef}
+						type="file"
+						accept=".json"
+						onChange={onFileChange}
+						className="hidden"
+					/>
+				</div>
+			</nav>
+
+			{/* Franchise Stats */}
+			<div className="p-4 border-t border-gray-700 space-y-3">
+				<div className="text-xs text-gray-400 uppercase font-semibold mb-2">Franchise Info</div>
+				
+				<div className="space-y-2">
+					<div className="flex justify-between items-center">
+						<span className="text-sm text-gray-400">Teams</span>
+						<span className="text-sm font-bold text-blue-400">{currentFranchise?.teams?.length || 0}</span>
+					</div>
+					
+					<div className="flex justify-between items-center">
+						<span className="text-sm text-gray-400">Players</span>
+						<span className="text-sm font-bold text-green-400">
+							{currentFranchise?.teams?.reduce((acc, team) => acc + (team.players?.length || 0), 0) || 0}
+						</span>
+					</div>
+					
+					<div className="pt-2 border-t border-gray-700">
+						<div className="text-xs text-gray-500 mb-1">General Manager</div>
+						<div className="text-sm text-white font-medium">{currentFranchise?.gm?.name || "N/A"}</div>
+						{currentFranchise?.agms && currentFranchise.agms.length > 0 && (
+							<div className="mt-2">
+								<div className="text-xs text-gray-500 mb-1">Assistant GMs</div>
+								<div className="space-y-1">
+									{currentFranchise.agms.map((agm, index) => (
+										<div key={index} className="text-xs text-gray-300">{agm.name}</div>
+									))}
+								</div>
+							</div>
+						)}
+					</div>
+				</div>
+			</div>
+
+			{/* Bottom Actions */}
+			<div className="p-4 border-t border-gray-700">
+				<button
+					onClick={onChangeFranchise}
+					className="w-full flex items-center gap-3 px-4 py-3 text-left text-gray-300 hover:text-white hover:bg-gray-700 rounded-lg transition-colors"
+				>
+					<svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+						<path fillRule="evenodd" d="M4 2a1 1 0 011 1v2.101a7.002 7.002 0 0111.601 2.566 1 1 0 11-1.885.666A5.002 5.002 0 005.999 7H9a1 1 0 010 2H4a1 1 0 01-1-1V3a1 1 0 011-1zm.008 9.057a1 1 0 011.276.61A5.002 5.002 0 0014.001 13H11a1 1 0 110-2h5a1 1 0 011 1v5a1 1 0 11-2 0v-2.101a7.002 7.002 0 01-11.601-2.566 1 1 0 01.61-1.276z" clipRule="evenodd" />
+					</svg>
+					<span className="font-medium">Change Franchise</span>
+				</button>
+			</div>
+		</div>
+	);
+}
