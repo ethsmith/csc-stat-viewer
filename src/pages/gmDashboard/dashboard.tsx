@@ -37,9 +37,9 @@ export function Dashboard() {
 	const [playerTargets, setPlayerTargets] = useLocalStorage("playerTargets", "{}");
 	const [selectedStats, setSelectedStats] = useLocalStorage("selectedTargetStats", '["rating"]');
 	const [playerRoles, setPlayerRoles] = useLocalStorage("playerRoles", "{}");
-	const [sectionOrder, setSectionOrder] = useLocalStorage<string>("dashboardSectionOrder", JSON.stringify(DEFAULT_SECTION_ORDER));
-	const [hiddenSections, setHiddenSections] = useLocalStorage<string>("dashboardHiddenSections", "[]");
-	const [collapsedSections, setCollapsedSections] = useLocalStorage<string>("dashboardCollapsedSections", "[]");
+	const [sectionOrder, setSectionOrder] = useLocalStorage("dashboardSectionOrder", JSON.stringify(DEFAULT_SECTION_ORDER));
+	const [hiddenSections, setHiddenSections] = useLocalStorage("dashboardHiddenSections", "[]");
+	const [collapsedSections, setCollapsedSections] = useLocalStorage("dashboardCollapsedSections", "[]");
 	const [showHiddenMenu, setShowHiddenMenu] = React.useState(false);
 	const fileInputRef = React.useRef<HTMLInputElement>(null);
 
