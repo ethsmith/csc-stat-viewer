@@ -190,7 +190,7 @@ export function ScoutingNotes() {
 
 	// Export/Import handlers using shared utils
 	const handleExport = () => {
-		handleExportSettings(selectedFranchise, playerTargets, playerRoles, selectedStats, sectionOrder, hiddenSections, collapsedSections, scoutingNotes);
+		handleExportSettings(selectedFranchise, playerTargets, playerRoles, selectedStats, sectionOrder, hiddenSections, collapsedSections, scoutingNotes, colorblindMode, colorblindColors);
 	};
 
 	const handleFileChange = createImportHandler(
@@ -201,7 +201,9 @@ export function ScoutingNotes() {
 		setSectionOrder,
 		setHiddenSections,
 		setCollapsedSections,
-		setScoutingNotes
+		setScoutingNotes,
+		setColorblindMode,
+		setColorblindColors
 	);
 
 	if (isLoading) {

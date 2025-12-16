@@ -119,13 +119,20 @@ export function SetTargets() {
 
 
 	const handleExport = () => {
-		handleExportSettings(selectedFranchise, playerTargets, playerRoles, selectedStats);
+		handleExportSettings(selectedFranchise, playerTargets, playerRoles, selectedStats, undefined, undefined, undefined, undefined, colorblindMode, colorblindColors);
 	};
 
 	const handleImportSettings = createImportHandler(
 		setPlayerTargets,
 		setPlayerRoles,
-		setSelectedStats
+		setSelectedStats,
+		undefined,
+		undefined,
+		undefined,
+		undefined,
+		undefined,
+		setColorblindMode,
+		setColorblindColors
 	);
 
 	const handleImportClick = () => {

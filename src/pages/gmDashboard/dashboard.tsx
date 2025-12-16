@@ -198,7 +198,9 @@ export function Dashboard() {
 		setSectionOrder,
 		setHiddenSections,
 		setCollapsedSections,
-		setScoutingNotes
+		setScoutingNotes,
+		setColorblindMode,
+		setColorblindColors
 	);
 
 	const handleImportClick = () => {
@@ -206,7 +208,7 @@ export function Dashboard() {
 	};
 
 	const handleExport = () => {
-		handleExportSettings(selectedFranchise, playerTargets, playerRoles, selectedStats, sectionOrder, hiddenSections, collapsedSections, scoutingNotes);
+		handleExportSettings(selectedFranchise, playerTargets, playerRoles, selectedStats, sectionOrder, hiddenSections, collapsedSections, scoutingNotes, colorblindMode, colorblindColors);
 	};
 
 	const currentFranchise = franchises.find(f => f.prefix === selectedFranchise);

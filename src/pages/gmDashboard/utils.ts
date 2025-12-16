@@ -274,7 +274,9 @@ export const handleExportSettings = (
 	sectionOrder?: string,
 	hiddenSections?: string,
 	collapsedSections?: string,
-	scoutingNotes?: string
+	scoutingNotes?: string,
+	colorblindMode?: string,
+	colorblindColors?: string
 ) => {
 	const exportData = {
 		franchise: selectedFranchise,
@@ -285,8 +287,10 @@ export const handleExportSettings = (
 		hiddenSections: hiddenSections,
 		collapsedSections: collapsedSections,
 		scoutingNotes: scoutingNotes,
+		colorblindMode: colorblindMode,
+		colorblindColors: colorblindColors,
 		exportDate: new Date().toISOString(),
-		version: "1.3"
+		version: "1.4"
 	};
 
 	const dataStr = JSON.stringify(exportData, null, 2);
@@ -309,7 +313,9 @@ export const createImportHandler = (
 	setSectionOrder?: (value: string) => void,
 	setHiddenSections?: (value: string) => void,
 	setCollapsedSections?: (value: string) => void,
-	setScoutingNotes?: (value: string) => void
+	setScoutingNotes?: (value: string) => void,
+	setColorblindMode?: (value: string) => void,
+	setColorblindColors?: (value: string) => void
 ) => {
 	return (event: React.ChangeEvent<HTMLInputElement>) => {
 		const file = event.target.files?.[0];
@@ -344,6 +350,12 @@ export const createImportHandler = (
 				}
 				if (importData.scoutingNotes && setScoutingNotes) {
 					setScoutingNotes(importData.scoutingNotes);
+				}
+				if (importData.colorblindMode !== undefined && setColorblindMode) {
+					setColorblindMode(importData.colorblindMode);
+				}
+				if (importData.colorblindColors && setColorblindColors) {
+					setColorblindColors(importData.colorblindColors);
 				}
 
 				alert('Settings imported successfully!');
