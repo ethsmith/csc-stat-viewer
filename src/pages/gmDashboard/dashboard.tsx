@@ -6,6 +6,8 @@ import { Franchise } from "../../models/franchise-types";
 import { useLocalStorage } from "../../common/hooks/localStorage";
 import { useCscStatsCache } from "../../dao/cscStatsGraphQLDao";
 import { useCachedCscSeasonAndTiers } from "../../dao/cscSeasonAndTiersDao";
+import { useCscPlayersCache } from "../../dao/cscPlayerGraphQLDao";
+import { CscPlayer } from "../../models/csc-player-types";
 import { Link } from "wouter";
 import { franchiseImages } from "../../common/images/franchise";
 import { CscStats } from "../../models/csc-stats-types";
@@ -15,6 +17,7 @@ import { PlayerStatCell } from "./components/PlayerStatCell";
 import { TeamSummary } from "./components/TeamSummary";
 import { RoleFitScore } from "./components/RoleFitScore";
 import { DraggableSection, SectionId, DEFAULT_SECTION_ORDER, SECTION_LABELS } from "./components/DraggableSection";
+import { PlayerComparisonModal, StatComparisonBadge, ComparisonPlayerData } from "./components/PlayerComparisonModal";
 import { PlayerTargets, PlayerRoles, PLAYER_ROLES } from "./types";
 import {
 	getPlayerTarget,
@@ -42,6 +45,11 @@ export function Dashboard() {
 	const [collapsedSections, setCollapsedSections] = useLocalStorage("dashboardCollapsedSections", "[]");
 	const [showHiddenMenu, setShowHiddenMenu] = React.useState(false);
 	const fileInputRef = React.useRef<HTMLInputElement>(null);
+	
+	// Player comparison state - maps rostered player name to array of comparison players (stats + mmr)
+	const [comparisonData, setComparisonData] = React.useState<Record<string, ComparisonPlayerData[]>>({});
+	const [showComparisonModal, setShowComparisonModal] = React.useState(false);
+	const [selectedPlayerForComparison, setSelectedPlayerForComparison] = React.useState<string | null>(null);
 
 	const parsedSectionOrder: SectionId[] = React.useMemo(() => {
 		try {
@@ -142,6 +150,20 @@ export function Dashboard() {
 		{ enabled: season > 0 }
 	);
 
+	// Fetch all players to get MMR data for comparisons
+	const { data: allPlayers = [] } = useCscPlayersCache(season, { enabled: season > 0 });
+
+	// Create a map of player name to MMR for quick lookup
+	const playerMmrMap = React.useMemo(() => {
+		const map: Record<string, number> = {};
+		allPlayers.forEach(player => {
+			if (player.mmr) {
+				map[player.name] = player.mmr;
+			}
+		});
+		return map;
+	}, [allPlayers]);
+
 	const filteredFranchises = React.useMemo(() => {
 		if (!searchQuery) return franchises;
 		const query = searchQuery.toLowerCase();
@@ -191,6 +213,64 @@ export function Dashboard() {
 	const getPlayerStats = (playerName: string, tierName: string) => {
 		const tierStats = statsCache?.data?.[tierName as keyof typeof statsCache.data];
 		return tierStats?.find(stat => stat.name === playerName);
+	};
+
+	// Get all players in the current tier for comparison
+	const tierPlayers: CscStats[] = React.useMemo(() => {
+		if (!selectedTeam || !statsCache) return [];
+		const tierStats = statsCache?.data?.[selectedTeam.tier.name as keyof typeof statsCache.data];
+		return tierStats || [];
+	}, [selectedTeam, statsCache]);
+
+	// Get rostered player names
+	const rosteredPlayerNames = React.useMemo(() => {
+		return selectedTeam?.players?.map(p => p.name) || [];
+	}, [selectedTeam]);
+
+	// Handle opening comparison modal
+	const handleOpenComparisonModal = (playerName: string) => {
+		setSelectedPlayerForComparison(playerName);
+		setShowComparisonModal(true);
+	};
+
+	// Handle selecting a comparison player (adds to array)
+	const handleSelectComparisonPlayer = (comparisonPlayerData: ComparisonPlayerData) => {
+		if (selectedPlayerForComparison) {
+			setComparisonData(prev => {
+				const existing = prev[selectedPlayerForComparison] || [];
+				// Don't add duplicates
+				if (existing.some(p => p.stats.name === comparisonPlayerData.stats.name)) {
+					return prev;
+				}
+				return {
+					...prev,
+					[selectedPlayerForComparison]: [...existing, comparisonPlayerData]
+				};
+			});
+		}
+		setShowComparisonModal(false);
+		setSelectedPlayerForComparison(null);
+	};
+
+	// Handle clearing a specific comparison for a player
+	const handleClearComparison = (playerName: string, comparisonPlayerName?: string) => {
+		setComparisonData(prev => {
+			if (!comparisonPlayerName) {
+				// Clear all comparisons for this player
+				const newData = { ...prev };
+				delete newData[playerName];
+				return newData;
+			}
+			// Clear specific comparison
+			const existing = prev[playerName] || [];
+			const filtered = existing.filter(p => p.stats.name !== comparisonPlayerName);
+			if (filtered.length === 0) {
+				const newData = { ...prev };
+				delete newData[playerName];
+				return newData;
+			}
+			return { ...prev, [playerName]: filtered };
+		});
 	};
 
 	const parsedPlayerTargets: PlayerTargets = React.useMemo(() => {
@@ -536,62 +616,153 @@ export function Dashboard() {
 																		<th className="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">
 																			Role
 																		</th>
+																		<th className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">
+																			Compare
+																		</th>
 																	</tr>
 																</thead>
 																<tbody className="divide-y divide-gray-700">
 																	{selectedTeam.players && selectedTeam.players.length > 0 ? (
 																		selectedTeam.players.map((player, idx) => {
 																			const playerStats = getPlayerStats(player.name, selectedTeam.tier.name);
+																			const comparisonPlayer = comparisonData[player.name];
 																			return (
-																				<tr key={player.steam64Id || idx} className="hover:bg-gray-750">
-																					<td className="px-6 py-4 whitespace-nowrap">
-																						<Link href={`/players/${player.name}`}>
-																							<div className="text-sm font-medium text-white hover:text-blue-400 cursor-pointer transition-colors">
-																								{player.name}
+																				<React.Fragment key={player.steam64Id || idx}>
+																					<tr className="hover:bg-gray-750">
+																						<td className="px-6 py-4 whitespace-nowrap">
+																							<Link href={`/players/${player.name}`}>
+																								<div className="text-sm font-medium text-white hover:text-blue-400 cursor-pointer transition-colors">
+																									{player.name}
+																								</div>
+																							</Link>
+																						</td>
+																						<td className="px-6 py-4 whitespace-nowrap">
+																							<div className="text-sm text-gray-300">{player.mmr}</div>
+																						</td>
+																						{parsedSelectedStats.map(statKey => {
+																							const playerStat = getPlayerStats(player.name, selectedTeam.tier.name);
+																							const currentValue = playerStat?.[statKey as keyof CscStats] as number | undefined;
+																							const targetValue = getPlayerTarget(parsedPlayerTargets, statsCache, player.name, statKey, selectedTeam.tier.name);
+																							const statColor = getStatColor(currentValue, targetValue, statKey);
+																							
+																							return (
+																								<PlayerStatCell
+																									key={`${player.name}-${statKey}`}
+																									playerName={player.name}
+																									playerSteam64Id={player.steam64Id}
+																									statKey={statKey}
+																									currentValue={currentValue}
+																									statColor={statColor}
+																									season={season}
+																								/>
+																							);
+																						})}
+																						<td className="px-6 py-4 whitespace-nowrap">
+																							<div className="flex items-center gap-2">
+																								{parsedPlayerRoles[player.name] && (
+																									<span className="px-2 py-1 text-xs rounded bg-gray-700 text-white">
+																										{parsedPlayerRoles[player.name]}
+																									</span>
+																								)}
+																								{selectedTeam.captain?.steam64Id === player.steam64Id && (
+																									<span className="px-2 py-1 text-xs rounded bg-yellow-600 text-white">
+																										Captain
+																									</span>
+																								)}
 																							</div>
-																						</Link>
-																					</td>
-																					<td className="px-6 py-4 whitespace-nowrap">
-																						<div className="text-sm text-gray-300">{player.mmr}</div>
-																					</td>
-																					{parsedSelectedStats.map(statKey => {
-																						const playerStat = getPlayerStats(player.name, selectedTeam.tier.name);
-																						const currentValue = playerStat?.[statKey as keyof CscStats] as number | undefined;
-																						const targetValue = getPlayerTarget(parsedPlayerTargets, statsCache, player.name, statKey, selectedTeam.tier.name);
-																						const statColor = getStatColor(currentValue, targetValue, statKey);
+																						</td>
+																						<td className="px-4 py-4 whitespace-nowrap">
+																							<button
+																								onClick={() => handleOpenComparisonModal(player.name)}
+																								className="px-2 py-1 text-xs bg-purple-600 hover:bg-purple-500 text-white rounded transition-colors flex items-center gap-1"
+																								title="Compare with another player"
+																							>
+																								<svg className="h-3 w-3" fill="currentColor" viewBox="0 0 20 20">
+																									<path fillRule="evenodd" d="M4 2a1 1 0 011 1v2.101a7.002 7.002 0 0111.601 2.566 1 1 0 11-1.885.666A5.002 5.002 0 005.999 7H9a1 1 0 010 2H4a1 1 0 01-1-1V3a1 1 0 011-1zm.008 9.057a1 1 0 011.276.61A5.002 5.002 0 0014.001 13H11a1 1 0 110-2h5a1 1 0 011 1v5a1 1 0 11-2 0v-2.101a7.002 7.002 0 01-11.601-2.566 1 1 0 01.61-1.276z" clipRule="evenodd" />
+																								</svg>
+																								Swap
+																							</button>
+																						</td>
+																					</tr>
+																					{comparisonPlayer && comparisonPlayer.length > 0 && comparisonPlayer.map((compPlayer, compIdx) => {
+																						const compStats = compPlayer.stats;
+																						const compMmr = compPlayer.mmr;
+																						const currentMmr = player.mmr || 0;
+																						const teamTotalMmr = selectedTeam.players?.reduce((acc, p) => acc + (p.mmr || 0), 0) || 0;
+																						const mmrAfterSwap = teamTotalMmr - currentMmr + (compMmr || 0);
+																						const mmrRemaining = selectedTeam.tier.mmrCap - mmrAfterSwap;
+																						const isOverCap = mmrRemaining < 0;
 																						
 																						return (
-																							<PlayerStatCell
-																								key={`${player.name}-${statKey}`}
-																								playerName={player.name}
-																								playerSteam64Id={player.steam64Id}
-																								statKey={statKey}
-																								currentValue={currentValue}
-																								statColor={statColor}
-																								season={season}
-																							/>
+																						<tr key={`comp-${player.name}-${compStats.name}-${compIdx}`} className="bg-purple-900/20 border-l-4 border-purple-500">
+																							<td className="px-6 py-3 whitespace-nowrap">
+																								<div className="flex items-center gap-2">
+																									<span className="text-xs text-purple-400 font-semibold">vs</span>
+																									<Link href={`/players/${compStats.name}`}>
+																										<span className="text-sm font-medium text-purple-300 hover:text-purple-200 cursor-pointer transition-colors">
+																											{compStats.name}
+																										</span>
+																									</Link>
+																									<span className="text-xs text-gray-500">({compStats.team || "FA"})</span>
+																									<button
+																										onClick={() => handleClearComparison(player.name, compStats.name)}
+																										className="ml-2 text-gray-500 hover:text-red-400 transition-colors"
+																										title="Remove comparison"
+																									>
+																										<svg className="h-3 w-3" fill="currentColor" viewBox="0 0 20 20">
+																											<path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
+																										</svg>
+																									</button>
+																								</div>
+																							</td>
+																							<td className="px-6 py-3 whitespace-nowrap">
+																								<div className="flex flex-col">
+																									<span className="text-sm text-purple-300">{compMmr || "N/A"}</span>
+																									<span className={`text-xs ${isOverCap ? 'text-red-400 font-semibold' : 'text-green-400'}`}>
+																										{mmrRemaining} left
+																									</span>
+																								</div>
+																							</td>
+																							{parsedSelectedStats.map(statKey => {
+																								const currentPlayerStat = playerStats?.[statKey as keyof CscStats] as number | undefined;
+																								const comparisonValue = compStats[statKey as keyof CscStats] as number | undefined;
+																								
+																								return (
+																									<td key={`comparison-${player.name}-${compStats.name}-${statKey}`} className="px-4 py-3 whitespace-nowrap">
+																										<div className="flex items-center">
+																											<span className="text-sm text-purple-300">
+																												{comparisonValue !== undefined ? comparisonValue.toFixed(2) : "N/A"}
+																											</span>
+																											<StatComparisonBadge
+																												currentValue={currentPlayerStat}
+																												comparisonValue={comparisonValue}
+																												statKey={statKey}
+																											/>
+																										</div>
+																									</td>
+																								);
+																							})}
+																							<td className="px-6 py-3 whitespace-nowrap">
+																								<span className="text-xs text-gray-500">-</span>
+																							</td>
+																							<td className="px-4 py-3 whitespace-nowrap">
+																								<button
+																									onClick={() => handleOpenComparisonModal(player.name)}
+																									className="px-2 py-1 text-xs bg-gray-600 hover:bg-gray-500 text-white rounded transition-colors"
+																									title="Add another comparison"
+																								>
+																									+ Add
+																								</button>
+																							</td>
+																						</tr>
 																						);
 																					})}
-																					<td className="px-6 py-4 whitespace-nowrap">
-																						<div className="flex items-center gap-2">
-																							{parsedPlayerRoles[player.name] && (
-																								<span className="px-2 py-1 text-xs rounded bg-gray-700 text-white">
-																									{parsedPlayerRoles[player.name]}
-																								</span>
-																							)}
-																							{selectedTeam.captain?.steam64Id === player.steam64Id && (
-																								<span className="px-2 py-1 text-xs rounded bg-yellow-600 text-white">
-																									Captain
-																								</span>
-																							)}
-																						</div>
-																					</td>
-																				</tr>
+																				</React.Fragment>
 																			);
 																		})
 																	) : (
 																		<tr>
-																			<td colSpan={parsedSelectedStats.length + 3} className="px-6 py-8 text-center text-gray-400">
+																			<td colSpan={parsedSelectedStats.length + 4} className="px-6 py-8 text-center text-gray-400">
 																				No players on this team
 																			</td>
 																		</tr>
@@ -669,6 +840,27 @@ export function Dashboard() {
 			)}
 				</div>
 			</div>
+
+			{/* Player Comparison Modal */}
+			{selectedTeam && (
+				<PlayerComparisonModal
+					isOpen={showComparisonModal}
+					onClose={() => {
+						setShowComparisonModal(false);
+						setSelectedPlayerForComparison(null);
+					}}
+					onSelectPlayer={handleSelectComparisonPlayer}
+					currentPlayerName={selectedPlayerForComparison || ""}
+					currentPlayerMmr={selectedPlayerForComparison ? selectedTeam.players?.find(p => p.name === selectedPlayerForComparison)?.mmr : undefined}
+					tierName={selectedTeam.tier.name}
+					availablePlayers={tierPlayers}
+					rosteredPlayerNames={rosteredPlayerNames}
+					alreadyComparedNames={selectedPlayerForComparison ? (comparisonData[selectedPlayerForComparison] || []).map(p => p.stats.name) : []}
+					playerMmrMap={playerMmrMap}
+					teamMmrCap={selectedTeam.tier.mmrCap}
+					teamCurrentMmr={selectedTeam.players?.reduce((acc, p) => acc + (p.mmr || 0), 0) || 0}
+				/>
+			)}
 		</div>
 	);
 }
