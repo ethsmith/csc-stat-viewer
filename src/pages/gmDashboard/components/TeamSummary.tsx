@@ -10,6 +10,7 @@ interface TeamSummaryProps {
 	onHide?: () => void;
 	isExpanded?: boolean;
 	onToggleExpand?: (expanded: boolean) => void;
+	colorblindMode?: boolean;
 }
 
 interface TeamMetrics {
@@ -140,7 +141,7 @@ const calculateTeamMetrics = (
 	};
 };
 
-export function TeamSummary({ players, tierAverages, playerTargets, playerRoles, onHide, isExpanded, onToggleExpand }: TeamSummaryProps) {
+export function TeamSummary({ players, tierAverages, playerTargets, playerRoles, onHide, isExpanded, onToggleExpand, colorblindMode = false }: TeamSummaryProps) {
 	const metrics = React.useMemo(
 		() => calculateTeamMetrics(players, tierAverages, playerTargets, playerRoles),
 		[players, tierAverages, playerTargets, playerRoles]
@@ -148,27 +149,40 @@ export function TeamSummary({ players, tierAverages, playerTargets, playerRoles,
 
 	const getRatingColor = (current: number, target: number) => {
 		const diff = current - target;
-		if (diff >= 0.1) return "text-green-400";
+		if (diff >= 0.1) return colorblindMode ? "text-cyan-400" : "text-green-400";
 		if (diff >= 0) return "text-blue-400";
-		if (diff >= -0.05) return "text-yellow-400";
-		return "text-red-400";
+		if (diff >= -0.05) return colorblindMode ? "text-orange-400" : "text-yellow-400";
+		return colorblindMode ? "text-purple-400" : "text-red-400";
 	};
 
 	const getODColor = (current: number, target: number) => {
 		const diff = current - target;
-		if (diff >= 0.05) return "text-green-400";
+		if (diff >= 0.05) return colorblindMode ? "text-cyan-400" : "text-green-400";
 		if (diff >= 0) return "text-blue-400";
-		if (diff >= -0.03) return "text-yellow-400";
-		return "text-red-400";
+		if (diff >= -0.03) return colorblindMode ? "text-orange-400" : "text-yellow-400";
+		return colorblindMode ? "text-purple-400" : "text-red-400";
 	};
+
+	// Adjust health color for colorblind mode
+	const getHealthColor = () => {
+		if (colorblindMode) {
+			if (metrics.healthScore >= 90) return "text-cyan-400";
+			if (metrics.healthScore >= 75) return "text-blue-400";
+			if (metrics.healthScore >= 60) return "text-orange-400";
+			if (metrics.healthScore >= 40) return "text-orange-500";
+			return "text-purple-400";
+		}
+		return metrics.healthColor;
+	};
+	const healthColor = getHealthColor();
 
 	const headerExtra = (
 		<div className="flex items-center gap-2 ml-4">
 			<span className="text-sm text-gray-400">Health:</span>
-			<span className={`text-lg font-bold ${metrics.healthColor}`}>
+			<span className={`text-lg font-bold ${healthColor}`}>
 				{metrics.healthScore}
 			</span>
-			<span className={`text-sm ${metrics.healthColor}`}>
+			<span className={`text-sm ${healthColor}`}>
 				({metrics.healthLabel})
 			</span>
 		</div>

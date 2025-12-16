@@ -36,11 +36,22 @@ export const getPlayerTarget = (
 export const getStatColor = (
 	currentValue: number | undefined,
 	targetValue: number | undefined,
-	statKey: string
+	statKey: string,
+	colorblindMode: boolean = false
 ): string => {
 	if (!currentValue || !targetValue) return "text-gray-300";
 	const diff = currentValue - targetValue;
 	const threshold = statKey === "rating" ? 0.03 : targetValue * 0.05;
+	
+	if (colorblindMode) {
+		// Colorblind-friendly palette using blue/orange/purple
+		if (diff > threshold) return "text-cyan-400";      // Good - cyan (distinguishable from red)
+		if (diff >= 0) return "text-blue-400";              // On target - blue
+		if (diff >= -threshold) return "text-orange-400";   // Slightly below - orange
+		return "text-purple-400";                           // Below target - purple
+	}
+	
+	// Default palette
 	if (diff > threshold) return "text-green-400";
 	if (diff >= 0) return "text-blue-400";
 	if (diff >= -threshold) return "text-yellow-400";
@@ -50,6 +61,23 @@ export const getStatColor = (
 export const getStatLabel = (statKey: string): string => {
 	const stat = AVAILABLE_STATS.find(s => s.key === statKey);
 	return stat?.label || statKey;
+};
+
+// Colorblind-friendly color mapping for positive/negative indicators
+export const getPositiveColor = (colorblindMode: boolean = false): string => {
+	return colorblindMode ? "text-cyan-400" : "text-green-400";
+};
+
+export const getNegativeColor = (colorblindMode: boolean = false): string => {
+	return colorblindMode ? "text-purple-400" : "text-red-400";
+};
+
+export const getPositiveBgColor = (colorblindMode: boolean = false): string => {
+	return colorblindMode ? "bg-cyan-500/20" : "bg-green-500/20";
+};
+
+export const getNegativeBgColor = (colorblindMode: boolean = false): string => {
+	return colorblindMode ? "bg-purple-500/20" : "bg-red-500/20";
 };
 
 export const handleExportSettings = (

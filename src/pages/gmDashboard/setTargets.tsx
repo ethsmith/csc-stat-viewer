@@ -25,6 +25,7 @@ export function SetTargets() {
 	const [selectedStats, setSelectedStats] = useLocalStorage("selectedTargetStats", '["rating"]');
 	const [statSearchQuery, setStatSearchQuery] = React.useState("");
 	const [showStatSelector, setShowStatSelector] = React.useState(false);
+	const [colorblindMode, setColorblindMode] = useLocalStorage("colorblindMode", "false");
 	const [, setLocation] = useLocation();
 	const fileInputRef = React.useRef<HTMLInputElement>(null);
 	
@@ -168,6 +169,8 @@ export function SetTargets() {
 				onChangeFranchise={handleChangeFranchise}
 				fileInputRef={fileInputRef}
 				onFileChange={handleImportSettings}
+				colorblindMode={colorblindMode === "true"}
+				onToggleColorblindMode={() => setColorblindMode(colorblindMode === "true" ? "false" : "true")}
 			/>
 
 			{/* Main Content */}
@@ -332,7 +335,7 @@ export function SetTargets() {
 															const currentValue = playerStats?.[statKey as keyof CscStats] as number | undefined;
 															const explicitTarget = playerTargetData[statKey];
 															const targetValue = getPlayerTarget(parsedPlayerTargets, statsCache, player.name, statKey, selectedTeam.tier.name);
-															const statColor = getStatColor(currentValue, targetValue, statKey);
+															const statColor = getStatColor(currentValue, targetValue, statKey, colorblindMode === "true");
 															const diff = currentValue !== undefined && targetValue !== undefined
 																? (currentValue - targetValue).toFixed(2)
 																: "N/A";
@@ -406,7 +409,7 @@ export function SetTargets() {
 								<h3 className="text-lg font-bold mb-3">Color Legend</h3>
 								<div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
 									<div className="flex items-center gap-2">
-										<div className="w-4 h-4 bg-green-400 rounded"></div>
+										<div className={`w-4 h-4 rounded ${colorblindMode === "true" ? "bg-cyan-400" : "bg-green-400"}`}></div>
 										<span className="text-gray-300">Above target</span>
 									</div>
 									<div className="flex items-center gap-2">
@@ -414,11 +417,11 @@ export function SetTargets() {
 										<span className="text-gray-300">At target</span>
 									</div>
 									<div className="flex items-center gap-2">
-										<div className="w-4 h-4 bg-yellow-400 rounded"></div>
+										<div className={`w-4 h-4 rounded ${colorblindMode === "true" ? "bg-orange-400" : "bg-yellow-400"}`}></div>
 										<span className="text-gray-300">Close to target</span>
 									</div>
 									<div className="flex items-center gap-2">
-										<div className="w-4 h-4 bg-red-400 rounded"></div>
+										<div className={`w-4 h-4 rounded ${colorblindMode === "true" ? "bg-purple-400" : "bg-red-400"}`}></div>
 										<span className="text-gray-300">Below target</span>
 									</div>
 								</div>

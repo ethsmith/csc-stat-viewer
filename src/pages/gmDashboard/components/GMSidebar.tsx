@@ -11,6 +11,8 @@ interface GMSidebarProps {
 	onChangeFranchise: () => void;
 	fileInputRef: React.RefObject<HTMLInputElement | null>;
 	onFileChange: (event: React.ChangeEvent<HTMLInputElement>) => void;
+	colorblindMode?: boolean;
+	onToggleColorblindMode?: () => void;
 }
 
 const getFranchiseImage = (prefix: string): string => {
@@ -24,7 +26,9 @@ export function GMSidebar({
 	onImport,
 	onChangeFranchise,
 	fileInputRef,
-	onFileChange
+	onFileChange,
+	colorblindMode,
+	onToggleColorblindMode
 }: GMSidebarProps) {
 	return (
 		<div className="w-64 bg-gray-800 border-r border-gray-700 flex flex-col">
@@ -119,6 +123,22 @@ export function GMSidebar({
 						onChange={onFileChange}
 						className="hidden"
 					/>
+
+					{onToggleColorblindMode && (
+						<button
+							onClick={onToggleColorblindMode}
+							className="w-full flex items-center gap-3 px-4 py-3 text-left text-gray-300 hover:text-white hover:bg-gray-700 rounded-lg transition-colors"
+						>
+							<svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+								<path d="M10 12a2 2 0 100-4 2 2 0 000 4z" />
+								<path fillRule="evenodd" d="M.458 10C1.732 5.943 5.522 3 10 3s8.268 2.943 9.542 7c-1.274 4.057-5.064 7-9.542 7S1.732 14.057.458 10zM14 10a4 4 0 11-8 0 4 4 0 018 0z" clipRule="evenodd" />
+							</svg>
+							<span className="font-medium">Colorblind Mode</span>
+							<div className={`ml-auto w-10 h-5 rounded-full transition-colors ${colorblindMode ? 'bg-blue-600' : 'bg-gray-600'}`}>
+								<div className={`w-4 h-4 rounded-full bg-white mt-0.5 transition-transform ${colorblindMode ? 'translate-x-5' : 'translate-x-0.5'}`} />
+							</div>
+						</button>
+					)}
 				</div>
 			</nav>
 

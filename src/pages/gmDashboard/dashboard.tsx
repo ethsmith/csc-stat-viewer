@@ -44,6 +44,7 @@ export function Dashboard() {
 	const [hiddenSections, setHiddenSections] = useLocalStorage("dashboardHiddenSections", "[]");
 	const [collapsedSections, setCollapsedSections] = useLocalStorage("dashboardCollapsedSections", "[]");
 	const [scoutingNotes, setScoutingNotes] = useLocalStorage("scoutingNotes", "{}");
+	const [colorblindMode, setColorblindMode] = useLocalStorage("colorblindMode", "false");
 	const [showHiddenMenu, setShowHiddenMenu] = React.useState(false);
 	const fileInputRef = React.useRef<HTMLInputElement>(null);
 	
@@ -497,6 +498,8 @@ export function Dashboard() {
 				onChangeFranchise={handleClearFranchise}
 				fileInputRef={fileInputRef}
 				onFileChange={handleImportSettings}
+				colorblindMode={colorblindMode === "true"}
+				onToggleColorblindMode={() => setColorblindMode(colorblindMode === "true" ? "false" : "true")}
 			/>
 
 			{/* Main Content */}
@@ -624,6 +627,7 @@ export function Dashboard() {
 														onHide={() => hideSection("teamSummary")}
 														isExpanded={isSectionExpanded("teamSummary")}
 														onToggleExpand={(expanded) => toggleSectionCollapse("teamSummary", expanded)}
+														colorblindMode={colorblindMode === "true"}
 													/>
 												);
 											case "roleFitScore":
@@ -638,6 +642,7 @@ export function Dashboard() {
 														onHide={() => hideSection("roleFitScore")}
 														isExpanded={isSectionExpanded("roleFitScore")}
 														onToggleExpand={(expanded) => toggleSectionCollapse("roleFitScore", expanded)}
+														colorblindMode={colorblindMode === "true"}
 													/>
 												);
 											case "playerTable":
@@ -698,7 +703,7 @@ export function Dashboard() {
 																							const playerStat = getPlayerStats(player.name, selectedTeam.tier.name);
 																							const currentValue = playerStat?.[statKey as keyof CscStats] as number | undefined;
 																							const targetValue = getPlayerTarget(parsedPlayerTargets, statsCache, player.name, statKey, selectedTeam.tier.name);
-																							const statColor = getStatColor(currentValue, targetValue, statKey);
+																							const statColor = getStatColor(currentValue, targetValue, statKey, colorblindMode === "true");
 																							
 																							return (
 																								<PlayerStatCell
@@ -830,6 +835,7 @@ export function Dashboard() {
 																												currentValue={currentPlayerStat}
 																												comparisonValue={comparisonValue}
 																												statKey={statKey}
+																												colorblindMode={colorblindMode === "true"}
 																											/>
 																										</div>
 																									</td>

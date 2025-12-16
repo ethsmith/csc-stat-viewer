@@ -1,5 +1,6 @@
 import * as React from "react";
 import { CscStats } from "../../../models/csc-stats-types";
+import { getPositiveColor, getNegativeColor } from "../utils";
 
 export interface ComparisonPlayerData {
 	stats: CscStats;
@@ -178,13 +179,15 @@ interface StatComparisonBadgeProps {
 	comparisonValue: number | undefined;
 	statKey: string;
 	inverse?: boolean; // For stats where lower is better
+	colorblindMode?: boolean;
 }
 
 export function StatComparisonBadge({ 
 	currentValue, 
 	comparisonValue, 
 	statKey,
-	inverse = false 
+	inverse = false,
+	colorblindMode = false
 }: StatComparisonBadgeProps) {
 	if (currentValue === undefined || comparisonValue === undefined) {
 		return null;
@@ -206,7 +209,7 @@ export function StatComparisonBadge({
 		);
 	}
 
-	const colorClass = isBetter ? "text-green-400" : "text-red-400";
+	const colorClass = isBetter ? getPositiveColor(colorblindMode) : getNegativeColor(colorblindMode);
 	const sign = diff > 0 ? "+" : "";
 
 	return (

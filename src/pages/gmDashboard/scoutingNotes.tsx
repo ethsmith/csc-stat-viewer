@@ -44,6 +44,7 @@ export function ScoutingNotes() {
 	const [sectionOrder, setSectionOrder] = useLocalStorage("dashboardSectionOrder", "[]");
 	const [hiddenSections, setHiddenSections] = useLocalStorage("dashboardHiddenSections", "[]");
 	const [collapsedSections, setCollapsedSections] = useLocalStorage("dashboardCollapsedSections", "[]");
+	const [colorblindMode, setColorblindMode] = useLocalStorage("colorblindMode", "false");
 	const [showAddPlayerModal, setShowAddPlayerModal] = React.useState(false);
 	const [playerSearchQuery, setPlayerSearchQuery] = React.useState("");
 	const fileInputRef = React.useRef<HTMLInputElement>(null);
@@ -261,6 +262,8 @@ export function ScoutingNotes() {
 				onChangeFranchise={() => setSelectedFranchise("")}
 				fileInputRef={fileInputRef}
 				onFileChange={handleFileChange}
+				colorblindMode={colorblindMode === "true"}
+				onToggleColorblindMode={() => setColorblindMode(colorblindMode === "true" ? "false" : "true")}
 			/>
 
 			{/* Main Content */}
