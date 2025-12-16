@@ -43,6 +43,7 @@ export function Dashboard() {
 	const [sectionOrder, setSectionOrder] = useLocalStorage("dashboardSectionOrder", JSON.stringify(DEFAULT_SECTION_ORDER));
 	const [hiddenSections, setHiddenSections] = useLocalStorage("dashboardHiddenSections", "[]");
 	const [collapsedSections, setCollapsedSections] = useLocalStorage("dashboardCollapsedSections", "[]");
+	const [scoutingNotes, setScoutingNotes] = useLocalStorage("scoutingNotes", "{}");
 	const [showHiddenMenu, setShowHiddenMenu] = React.useState(false);
 	const fileInputRef = React.useRef<HTMLInputElement>(null);
 	
@@ -191,7 +192,8 @@ export function Dashboard() {
 		setSelectedFranchise,
 		setSectionOrder,
 		setHiddenSections,
-		setCollapsedSections
+		setCollapsedSections,
+		setScoutingNotes
 	);
 
 	const handleImportClick = () => {
@@ -199,7 +201,7 @@ export function Dashboard() {
 	};
 
 	const handleExport = () => {
-		handleExportSettings(selectedFranchise, playerTargets, playerRoles, selectedStats, sectionOrder, hiddenSections, collapsedSections);
+		handleExportSettings(selectedFranchise, playerTargets, playerRoles, selectedStats, sectionOrder, hiddenSections, collapsedSections, scoutingNotes);
 	};
 
 	const currentFranchise = franchises.find(f => f.prefix === selectedFranchise);

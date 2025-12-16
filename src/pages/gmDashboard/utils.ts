@@ -59,7 +59,8 @@ export const handleExportSettings = (
 	selectedStats: string,
 	sectionOrder?: string,
 	hiddenSections?: string,
-	collapsedSections?: string
+	collapsedSections?: string,
+	scoutingNotes?: string
 ) => {
 	const exportData = {
 		franchise: selectedFranchise,
@@ -69,8 +70,9 @@ export const handleExportSettings = (
 		sectionOrder: sectionOrder,
 		hiddenSections: hiddenSections,
 		collapsedSections: collapsedSections,
+		scoutingNotes: scoutingNotes,
 		exportDate: new Date().toISOString(),
-		version: "1.2"
+		version: "1.3"
 	};
 
 	const dataStr = JSON.stringify(exportData, null, 2);
@@ -92,7 +94,8 @@ export const createImportHandler = (
 	setSelectedFranchise?: (value: string) => void,
 	setSectionOrder?: (value: string) => void,
 	setHiddenSections?: (value: string) => void,
-	setCollapsedSections?: (value: string) => void
+	setCollapsedSections?: (value: string) => void,
+	setScoutingNotes?: (value: string) => void
 ) => {
 	return (event: React.ChangeEvent<HTMLInputElement>) => {
 		const file = event.target.files?.[0];
@@ -124,6 +127,9 @@ export const createImportHandler = (
 				}
 				if (importData.collapsedSections && setCollapsedSections) {
 					setCollapsedSections(importData.collapsedSections);
+				}
+				if (importData.scoutingNotes && setScoutingNotes) {
+					setScoutingNotes(importData.scoutingNotes);
 				}
 
 				alert('Settings imported successfully!');

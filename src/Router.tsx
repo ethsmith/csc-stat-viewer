@@ -22,6 +22,7 @@ import {
 	Servers,
 	Dashboard,
 	SetTargets,
+	ScoutingNotes,
 } from "./pages";
 import { ArticleRoutes } from "./pages/articles/routes";
 import { useDataContext } from "./DataContext";
@@ -111,6 +112,7 @@ export function Router() {
 		{ path: `/gm`, component: () => <GMPanel /> },
 		{ path: `/dashboard`, component: () => <Dashboard /> },
 		{ path: `/dashboard/targets`, component: () => <SetTargets /> },
+		{ path: `/dashboard/scouting`, component: () => <ScoutingNotes /> },
 		{ path: `/franchiseManagement`, component: () => <FranchiseManagement /> },
 	].concat(articleRoutes);
 
