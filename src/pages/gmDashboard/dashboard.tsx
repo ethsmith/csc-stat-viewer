@@ -50,6 +50,8 @@ export function Dashboard() {
 	const [comparisonData, setComparisonData] = React.useState<Record<string, ComparisonPlayerData[]>>({});
 	const [showComparisonModal, setShowComparisonModal] = React.useState(false);
 	const [selectedPlayerForComparison, setSelectedPlayerForComparison] = React.useState<string | null>(null);
+	// Tracks which comparison player is "selected for signing" per rostered player (rosteredName -> comparisonPlayerName)
+	const [selectedForSigning, setSelectedForSigning] = React.useState<Record<string, string>>({});
 
 	const parsedSectionOrder: SectionId[] = React.useMemo(() => {
 		try {
@@ -271,7 +273,58 @@ export function Dashboard() {
 			}
 			return { ...prev, [playerName]: filtered };
 		});
+		// Also clear from selectedForSigning if this player was selected
+		if (comparisonPlayerName) {
+			setSelectedForSigning(prev => {
+				if (prev[playerName] === comparisonPlayerName) {
+					const newData = { ...prev };
+					delete newData[playerName];
+					return newData;
+				}
+				return prev;
+			});
+		} else {
+			// Clearing all comparisons, remove from signing selection
+			setSelectedForSigning(prev => {
+				const newData = { ...prev };
+				delete newData[playerName];
+				return newData;
+			});
+		}
 	};
+
+	// Handle selecting a comparison player for signing
+	const handleSelectForSigning = (rosteredPlayerName: string, comparisonPlayerName: string) => {
+		setSelectedForSigning(prev => {
+			// If already selected, deselect
+			if (prev[rosteredPlayerName] === comparisonPlayerName) {
+				const newData = { ...prev };
+				delete newData[rosteredPlayerName];
+				return newData;
+			}
+			// Select this player
+			return { ...prev, [rosteredPlayerName]: comparisonPlayerName };
+		});
+	};
+
+	// Get all players currently selected for signing (to prevent duplicates across pools)
+	const allSelectedForSigning = React.useMemo(() => {
+		return Object.values(selectedForSigning);
+	}, [selectedForSigning]);
+
+	// Calculate MMR delta from all selected signings
+	const selectedSigningsMmrDelta = React.useMemo(() => {
+		let delta = 0;
+		Object.entries(selectedForSigning).forEach(([rosteredName, comparisonName]) => {
+			const comparisons = comparisonData[rosteredName] || [];
+			const compPlayer = comparisons.find(c => c.stats.name === comparisonName);
+			const rosteredPlayer = selectedTeam?.players?.find(p => p.name === rosteredName);
+			if (compPlayer && rosteredPlayer) {
+				delta += (compPlayer.mmr || 0) - (rosteredPlayer.mmr || 0);
+			}
+		});
+		return delta;
+	}, [selectedForSigning, comparisonData, selectedTeam]);
 
 	const parsedPlayerTargets: PlayerTargets = React.useMemo(() => {
 		try {
@@ -689,17 +742,44 @@ export function Dashboard() {
 																						const compMmr = compPlayer.mmr;
 																						const currentMmr = player.mmr || 0;
 																						const teamTotalMmr = selectedTeam.players?.reduce((acc, p) => acc + (p.mmr || 0), 0) || 0;
-																						const mmrAfterSwap = teamTotalMmr - currentMmr + (compMmr || 0);
+																						
+																						// Check if this player is selected for signing
+																						const isSelectedForSigning = selectedForSigning[player.name] === compStats.name;
+																						// Check if this player is already selected in another pool
+																						const isSelectedElsewhere = !isSelectedForSigning && allSelectedForSigning.includes(compStats.name);
+																						
+																						// Calculate MMR: base team MMR + all selected signings delta
+																						// If this player is selected, their delta is already in selectedSigningsMmrDelta
+																						// If not selected, show what it would be if they were selected (excluding current rostered player's selection)
+																						let mmrDeltaForThisRow = selectedSigningsMmrDelta;
+																						if (!isSelectedForSigning) {
+																							// Remove current rostered player's selected signing from delta (if any)
+																							const currentSelection = selectedForSigning[player.name];
+																							if (currentSelection) {
+																								const currentSelectedComp = comparisonPlayer.find(c => c.stats.name === currentSelection);
+																								if (currentSelectedComp) {
+																									mmrDeltaForThisRow -= (currentSelectedComp.mmr || 0) - currentMmr;
+																								}
+																							}
+																							// Add this comparison player's delta
+																							mmrDeltaForThisRow += (compMmr || 0) - currentMmr;
+																						}
+																						
+																						const mmrAfterSwap = teamTotalMmr + mmrDeltaForThisRow;
 																						const mmrRemaining = selectedTeam.tier.mmrCap - mmrAfterSwap;
 																						const isOverCap = mmrRemaining < 0;
 																						
 																						return (
-																						<tr key={`comp-${player.name}-${compStats.name}-${compIdx}`} className="bg-purple-900/20 border-l-4 border-purple-500">
+																						<tr key={`comp-${player.name}-${compStats.name}-${compIdx}`} className={`border-l-4 ${isSelectedForSigning ? 'bg-green-900/30 border-green-500' : 'bg-purple-900/20 border-purple-500'} ${isSelectedElsewhere ? 'opacity-50' : ''}`}>
 																							<td className="px-6 py-3 whitespace-nowrap">
 																								<div className="flex items-center gap-2">
-																									<span className="text-xs text-purple-400 font-semibold">vs</span>
+																									{isSelectedForSigning ? (
+																										<span className="text-xs text-green-400 font-semibold">✓</span>
+																									) : (
+																										<span className="text-xs text-purple-400 font-semibold">vs</span>
+																									)}
 																									<Link href={`/players/${compStats.name}`}>
-																										<span className="text-sm font-medium text-purple-300 hover:text-purple-200 cursor-pointer transition-colors">
+																										<span className={`text-sm font-medium ${isSelectedForSigning ? 'text-green-300 hover:text-green-200' : 'text-purple-300 hover:text-purple-200'} cursor-pointer transition-colors`}>
 																											{compStats.name}
 																										</span>
 																									</Link>
@@ -717,7 +797,7 @@ export function Dashboard() {
 																							</td>
 																							<td className="px-6 py-3 whitespace-nowrap">
 																								<div className="flex flex-col">
-																									<span className="text-sm text-purple-300">{compMmr || "N/A"}</span>
+																									<span className={`text-sm ${isSelectedForSigning ? 'text-green-300' : 'text-purple-300'}`}>{compMmr || "N/A"}</span>
 																									<span className={`text-xs ${isOverCap ? 'text-red-400 font-semibold' : 'text-green-400'}`}>
 																										{mmrRemaining} left
 																									</span>
@@ -730,7 +810,7 @@ export function Dashboard() {
 																								return (
 																									<td key={`comparison-${player.name}-${compStats.name}-${statKey}`} className="px-4 py-3 whitespace-nowrap">
 																										<div className="flex items-center">
-																											<span className="text-sm text-purple-300">
+																											<span className={`text-sm ${isSelectedForSigning ? 'text-green-300' : 'text-purple-300'}`}>
 																												{comparisonValue !== undefined ? comparisonValue.toFixed(2) : "N/A"}
 																											</span>
 																											<StatComparisonBadge
@@ -746,13 +826,29 @@ export function Dashboard() {
 																								<span className="text-xs text-gray-500">-</span>
 																							</td>
 																							<td className="px-4 py-3 whitespace-nowrap">
-																								<button
-																									onClick={() => handleOpenComparisonModal(player.name)}
-																									className="px-2 py-1 text-xs bg-gray-600 hover:bg-gray-500 text-white rounded transition-colors"
-																									title="Add another comparison"
-																								>
-																									+ Add
-																								</button>
+																								<div className="flex gap-1">
+																									<button
+																										onClick={() => handleSelectForSigning(player.name, compStats.name)}
+																										disabled={isSelectedElsewhere}
+																										className={`px-2 py-1 text-xs rounded transition-colors ${
+																											isSelectedForSigning 
+																												? 'bg-green-600 hover:bg-green-500 text-white' 
+																												: isSelectedElsewhere
+																													? 'bg-gray-700 text-gray-500 cursor-not-allowed'
+																													: 'bg-blue-600 hover:bg-blue-500 text-white'
+																										}`}
+																										title={isSelectedElsewhere ? "Already selected in another pool" : isSelectedForSigning ? "Click to deselect" : "Select for signing"}
+																									>
+																										{isSelectedForSigning ? 'Selected' : isSelectedElsewhere ? 'Taken' : 'Sign'}
+																									</button>
+																									<button
+																										onClick={() => handleOpenComparisonModal(player.name)}
+																										className="px-2 py-1 text-xs bg-gray-600 hover:bg-gray-500 text-white rounded transition-colors"
+																										title="Add another comparison"
+																									>
+																										+
+																									</button>
+																								</div>
 																							</td>
 																						</tr>
 																						);
@@ -856,9 +952,11 @@ export function Dashboard() {
 					availablePlayers={tierPlayers}
 					rosteredPlayerNames={rosteredPlayerNames}
 					alreadyComparedNames={selectedPlayerForComparison ? (comparisonData[selectedPlayerForComparison] || []).map(p => p.stats.name) : []}
+					alreadySelectedForSigning={allSelectedForSigning}
 					playerMmrMap={playerMmrMap}
 					teamMmrCap={selectedTeam.tier.mmrCap}
 					teamCurrentMmr={selectedTeam.players?.reduce((acc, p) => acc + (p.mmr || 0), 0) || 0}
+					selectedSigningsMmrDelta={selectedSigningsMmrDelta}
 				/>
 			)}
 		</div>
