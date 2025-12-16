@@ -727,13 +727,24 @@ export function Dashboard() {
 																						<td className="px-4 py-4 whitespace-nowrap">
 																							<button
 																								onClick={() => handleOpenComparisonModal(player.name)}
-																								className="px-2 py-1 text-xs bg-purple-600 hover:bg-purple-500 text-white rounded transition-colors flex items-center gap-1"
-																								title="Compare with another player"
+																								className={`px-2 py-1 text-xs text-white rounded transition-colors flex items-center gap-1 ${comparisonPlayer && comparisonPlayer.length > 0 ? 'bg-gray-600 hover:bg-gray-500' : 'bg-purple-600 hover:bg-purple-500'}`}
+																								title={comparisonPlayer && comparisonPlayer.length > 0 ? "Add another comparison" : "Compare with another player"}
 																							>
-																								<svg className="h-3 w-3" fill="currentColor" viewBox="0 0 20 20">
-																									<path fillRule="evenodd" d="M4 2a1 1 0 011 1v2.101a7.002 7.002 0 0111.601 2.566 1 1 0 11-1.885.666A5.002 5.002 0 005.999 7H9a1 1 0 010 2H4a1 1 0 01-1-1V3a1 1 0 011-1zm.008 9.057a1 1 0 011.276.61A5.002 5.002 0 0014.001 13H11a1 1 0 110-2h5a1 1 0 011 1v5a1 1 0 11-2 0v-2.101a7.002 7.002 0 01-11.601-2.566 1 1 0 01.61-1.276z" clipRule="evenodd" />
-																								</svg>
-																								Swap
+																								{comparisonPlayer && comparisonPlayer.length > 0 ? (
+																									<>
+																										<svg className="h-3 w-3" fill="currentColor" viewBox="0 0 20 20">
+																											<path fillRule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clipRule="evenodd" />
+																										</svg>
+																										Add
+																									</>
+																								) : (
+																									<>
+																										<svg className="h-3 w-3" fill="currentColor" viewBox="0 0 20 20">
+																											<path fillRule="evenodd" d="M4 2a1 1 0 011 1v2.101a7.002 7.002 0 0111.601 2.566 1 1 0 11-1.885.666A5.002 5.002 0 005.999 7H9a1 1 0 010 2H4a1 1 0 01-1-1V3a1 1 0 011-1zm.008 9.057a1 1 0 011.276.61A5.002 5.002 0 0014.001 13H11a1 1 0 110-2h5a1 1 0 011 1v5a1 1 0 11-2 0v-2.101a7.002 7.002 0 01-11.601-2.566 1 1 0 01.61-1.276z" clipRule="evenodd" />
+																										</svg>
+																										Swap
+																									</>
+																								)}
 																							</button>
 																						</td>
 																					</tr>
@@ -826,29 +837,20 @@ export function Dashboard() {
 																								<span className="text-xs text-gray-500">-</span>
 																							</td>
 																							<td className="px-4 py-3 whitespace-nowrap">
-																								<div className="flex gap-1">
-																									<button
-																										onClick={() => handleSelectForSigning(player.name, compStats.name)}
-																										disabled={isSelectedElsewhere}
-																										className={`px-2 py-1 text-xs rounded transition-colors ${
-																											isSelectedForSigning 
-																												? 'bg-green-600 hover:bg-green-500 text-white' 
-																												: isSelectedElsewhere
-																													? 'bg-gray-700 text-gray-500 cursor-not-allowed'
-																													: 'bg-blue-600 hover:bg-blue-500 text-white'
-																										}`}
-																										title={isSelectedElsewhere ? "Already selected in another pool" : isSelectedForSigning ? "Click to deselect" : "Select for signing"}
-																									>
-																										{isSelectedForSigning ? 'Selected' : isSelectedElsewhere ? 'Taken' : 'Sign'}
-																									</button>
-																									<button
-																										onClick={() => handleOpenComparisonModal(player.name)}
-																										className="px-2 py-1 text-xs bg-gray-600 hover:bg-gray-500 text-white rounded transition-colors"
-																										title="Add another comparison"
-																									>
-																										+
-																									</button>
-																								</div>
+																								<button
+																									onClick={() => handleSelectForSigning(player.name, compStats.name)}
+																									disabled={isSelectedElsewhere}
+																									className={`px-2 py-1 text-xs rounded transition-colors ${
+																										isSelectedForSigning 
+																											? 'bg-green-600 hover:bg-green-500 text-white' 
+																											: isSelectedElsewhere
+																												? 'bg-gray-700 text-gray-500 cursor-not-allowed'
+																												: 'bg-blue-600 hover:bg-blue-500 text-white'
+																									}`}
+																									title={isSelectedElsewhere ? "Already selected in another pool" : isSelectedForSigning ? "Click to deselect" : "Select for signing"}
+																								>
+																									{isSelectedForSigning ? 'Selected' : isSelectedElsewhere ? 'Taken' : 'Sign'}
+																								</button>
 																							</td>
 																						</tr>
 																						);
