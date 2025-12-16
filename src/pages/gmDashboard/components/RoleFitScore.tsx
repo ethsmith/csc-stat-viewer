@@ -2,6 +2,7 @@ import * as React from "react";
 import { CscStats } from "../../../models/csc-stats-types";
 import { PlayerRole } from "../types";
 import { CollapsibleSection, SectionIcons } from "./CollapsibleSection";
+import { ColorblindColors, getScoreColor, getScoreColorStyle, getScoreBgColor, getScoreBgStyle } from "../utils";
 
 interface RoleFitScoreProps {
 	players: Array<{ name: string; stats?: CscStats }>;
@@ -11,6 +12,7 @@ interface RoleFitScoreProps {
 	isExpanded?: boolean;
 	onToggleExpand?: (expanded: boolean) => void;
 	colorblindMode?: boolean;
+	customColors?: ColorblindColors;
 }
 
 interface PlayerRoleFit {
@@ -158,7 +160,7 @@ const calculateRoleFit = (
 	};
 };
 
-export function RoleFitScore({ players, playerRoles, tierAverages, onHide, isExpanded, onToggleExpand, colorblindMode = false }: RoleFitScoreProps) {
+export function RoleFitScore({ players, playerRoles, tierAverages, onHide, isExpanded, onToggleExpand, colorblindMode = false, customColors }: RoleFitScoreProps) {
 	const roleFits = React.useMemo(() => {
 		return players
 			.filter(p => playerRoles[p.name])
@@ -174,25 +176,27 @@ export function RoleFitScore({ players, playerRoles, tierAverages, onHide, isExp
 
 	const mismatchCount = roleFits.filter(p => p.fitLabel === "Mismatch" || p.fitLabel === "Forced Role").length;
 
-	// Get colorblind-aware colors
-	const getScoreColor = (score: number) => {
-		if (score >= 70) return colorblindMode ? "text-cyan-400" : "text-green-400";
-		if (score >= 50) return colorblindMode ? "text-orange-400" : "text-yellow-400";
-		return colorblindMode ? "text-purple-400" : "text-red-400";
-	};
+	// Get colorblind-aware colors using utility functions
+	const getLocalScoreColor = (score: number) => getScoreColor(score, colorblindMode, customColors);
+	const getLocalScoreColorStyle = (score: number) => getScoreColorStyle(score, colorblindMode, customColors);
+	const getLocalBarColor = (score: number) => getScoreBgColor(score, colorblindMode, customColors);
+	const getLocalBarStyle = (score: number) => getScoreBgStyle(score, colorblindMode, customColors);
 
 	const getFitColor = (fitColor: string) => {
 		if (!colorblindMode) return fitColor;
+		if (customColors) return ""; // Will use inline style
 		if (fitColor === "text-green-400") return "text-cyan-400";
 		if (fitColor === "text-red-400") return "text-purple-400";
 		if (fitColor === "text-yellow-400") return "text-orange-400";
 		return fitColor;
 	};
 
-	const getBarColor = (score: number) => {
-		if (score >= 70) return colorblindMode ? "bg-cyan-500" : "bg-green-500";
-		if (score >= 50) return colorblindMode ? "bg-orange-500" : "bg-yellow-500";
-		return colorblindMode ? "bg-purple-500" : "bg-red-500";
+	const getFitColorStyle = (fitColor: string): React.CSSProperties => {
+		if (!colorblindMode || !customColors) return {};
+		if (fitColor === "text-green-400") return { color: customColors.good };
+		if (fitColor === "text-red-400") return { color: customColors.bad };
+		if (fitColor === "text-yellow-400") return { color: customColors.warning };
+		return {};
 	};
 
 	const getCardBorderColor = (fitLabel: string) => {
@@ -205,14 +209,28 @@ export function RoleFitScore({ players, playerRoles, tierAverages, onHide, isExp
 		return "bg-gray-900 border-gray-700";
 	};
 
+	const getCardBorderStyle = (fitLabel: string): React.CSSProperties => {
+		if (!colorblindMode || !customColors) return {};
+		if (fitLabel === "Mismatch") {
+			return { backgroundColor: customColors.bad + '33', borderColor: customColors.bad };
+		}
+		if (fitLabel === "Forced Role") {
+			return { backgroundColor: customColors.warning + '33', borderColor: customColors.warning };
+		}
+		return {};
+	};
+
 	const headerExtra = (
 		<div className="flex items-center gap-2 ml-4">
 			<span className="text-sm text-gray-400">Team Avg:</span>
-			<span className={`text-lg font-bold ${getScoreColor(avgScore)}`}>
+			<span className={`text-lg font-bold ${getLocalScoreColor(avgScore)}`} style={getLocalScoreColorStyle(avgScore)}>
 				{avgScore}%
 			</span>
 			{mismatchCount > 0 && (
-				<span className={`ml-2 px-2 py-0.5 text-xs rounded ${colorblindMode ? 'bg-purple-900/50 text-purple-300 border border-purple-700' : 'bg-red-900/50 text-red-300 border border-red-700'}`}>
+				<span 
+					className={`ml-2 px-2 py-0.5 text-xs rounded border ${!colorblindMode ? 'bg-red-900/50 text-red-300 border-red-700' : !customColors ? 'bg-purple-900/50 text-purple-300 border-purple-700' : ''}`}
+					style={colorblindMode && customColors ? { backgroundColor: customColors.bad + '80', color: customColors.bad, borderColor: customColors.bad } : {}}
+				>
 					{mismatchCount} issue{mismatchCount > 1 ? 's' : ''}
 				</span>
 			)}
@@ -239,6 +257,7 @@ export function RoleFitScore({ players, playerRoles, tierAverages, onHide, isExp
 								<div
 									key={fit.name}
 									className={`p-4 rounded-lg border ${getCardBorderColor(fit.fitLabel)}`}
+									style={getCardBorderStyle(fit.fitLabel)}
 								>
 									<div className="flex items-center justify-between mb-3">
 										<div className="flex items-center gap-3">
@@ -248,10 +267,10 @@ export function RoleFitScore({ players, playerRoles, tierAverages, onHide, isExp
 											</span>
 										</div>
 										<div className="flex items-center gap-2">
-											<span className={`text-2xl font-bold ${getFitColor(fit.fitColor)}`}>
+											<span className={`text-2xl font-bold ${getFitColor(fit.fitColor)}`} style={getFitColorStyle(fit.fitColor)}>
 												{fit.score}%
 											</span>
-											<span className={`text-sm ${getFitColor(fit.fitColor)}`}>
+											<span className={`text-sm ${getFitColor(fit.fitColor)}`} style={getFitColorStyle(fit.fitColor)}>
 												{fit.fitLabel}
 											</span>
 										</div>
@@ -263,8 +282,8 @@ export function RoleFitScore({ players, playerRoles, tierAverages, onHide, isExp
 											<div className="text-xs text-gray-400 mb-1">Rating Stability</div>
 											<div className="h-2 bg-gray-700 rounded-full overflow-hidden">
 												<div
-													className={`h-full rounded-full ${getBarColor(fit.ratingStability)}`}
-													style={{ width: `${fit.ratingStability}%` }}
+													className={`h-full rounded-full ${getLocalBarColor(fit.ratingStability)}`}
+													style={{ width: `${fit.ratingStability}%`, ...getLocalBarStyle(fit.ratingStability) }}
 												/>
 											</div>
 											<div className="text-xs text-gray-500 mt-0.5">{fit.ratingStability}%</div>
@@ -273,8 +292,8 @@ export function RoleFitScore({ players, playerRoles, tierAverages, onHide, isExp
 											<div className="text-xs text-gray-400 mb-1">OD Alignment</div>
 											<div className="h-2 bg-gray-700 rounded-full overflow-hidden">
 												<div
-													className={`h-full rounded-full ${getBarColor(fit.odAlignment)}`}
-													style={{ width: `${fit.odAlignment}%` }}
+													className={`h-full rounded-full ${getLocalBarColor(fit.odAlignment)}`}
+													style={{ width: `${fit.odAlignment}%`, ...getLocalBarStyle(fit.odAlignment) }}
 												/>
 											</div>
 											<div className="text-xs text-gray-500 mt-0.5">{fit.odAlignment}%</div>
@@ -283,8 +302,8 @@ export function RoleFitScore({ players, playerRoles, tierAverages, onHide, isExp
 											<div className="text-xs text-gray-400 mb-1">Impact vs Baseline</div>
 											<div className="h-2 bg-gray-700 rounded-full overflow-hidden">
 												<div
-													className={`h-full rounded-full ${getBarColor(fit.impactVsBaseline)}`}
-													style={{ width: `${fit.impactVsBaseline}%` }}
+													className={`h-full rounded-full ${getLocalBarColor(fit.impactVsBaseline)}`}
+													style={{ width: `${fit.impactVsBaseline}%`, ...getLocalBarStyle(fit.impactVsBaseline) }}
 												/>
 											</div>
 											<div className="text-xs text-gray-500 mt-0.5">{fit.impactVsBaseline}%</div>
@@ -325,19 +344,31 @@ export function RoleFitScore({ players, playerRoles, tierAverages, onHide, isExp
 					<div className="mt-4 pt-4 border-t border-gray-700">
 						<div className="flex flex-wrap gap-4 text-xs text-gray-400">
 							<div className="flex items-center gap-1">
-								<span className={`w-3 h-3 rounded-full ${colorblindMode ? "bg-cyan-500" : "bg-green-500"}`}></span>
+								<span 
+									className={`w-3 h-3 rounded-full ${!colorblindMode ? "bg-green-500" : !customColors ? "bg-cyan-500" : ""}`}
+									style={colorblindMode && customColors ? { backgroundColor: customColors.good } : {}}
+								></span>
 								<span>85%+ Excellent Fit</span>
 							</div>
 							<div className="flex items-center gap-1">
-								<span className="w-3 h-3 rounded-full bg-blue-500"></span>
+								<span 
+									className={`w-3 h-3 rounded-full ${!colorblindMode ? "bg-blue-500" : !customColors ? "bg-blue-500" : ""}`}
+									style={colorblindMode && customColors ? { backgroundColor: customColors.atTarget } : {}}
+								></span>
 								<span>70-84% Good Fit</span>
 							</div>
 							<div className="flex items-center gap-1">
-								<span className={`w-3 h-3 rounded-full ${colorblindMode ? "bg-orange-500" : "bg-yellow-500"}`}></span>
+								<span 
+									className={`w-3 h-3 rounded-full ${!colorblindMode ? "bg-yellow-500" : !customColors ? "bg-orange-500" : ""}`}
+									style={colorblindMode && customColors ? { backgroundColor: customColors.warning } : {}}
+								></span>
 								<span>50-69% Forced Role</span>
 							</div>
 							<div className="flex items-center gap-1">
-								<span className={`w-3 h-3 rounded-full ${colorblindMode ? "bg-purple-500" : "bg-red-500"}`}></span>
+								<span 
+									className={`w-3 h-3 rounded-full ${!colorblindMode ? "bg-red-500" : !customColors ? "bg-purple-500" : ""}`}
+									style={colorblindMode && customColors ? { backgroundColor: customColors.bad } : {}}
+								></span>
 								<span>&lt;50% Mismatch</span>
 							</div>
 						</div>

@@ -10,6 +10,7 @@ interface PlayerStatCellProps {
 	statKey: string;
 	currentValue: number | undefined;
 	statColor: string;
+	statColorStyle?: React.CSSProperties;
 	season: number;
 }
 
@@ -19,6 +20,7 @@ export function PlayerStatCell({
 	statKey, 
 	currentValue, 
 	statColor,
+	statColorStyle,
 	season 
 }: PlayerStatCellProps) {
 	// Use the same query as player profile trend graph
@@ -82,7 +84,7 @@ export function PlayerStatCell({
 	return (
 		<td className="px-4 py-4 whitespace-nowrap">
 			<div className="flex items-center gap-2">
-				<div className={`text-sm font-semibold ${statColor} min-w-[3rem]`}>
+				<div className={`text-sm font-semibold ${statColor} min-w-[3rem]`} style={statColorStyle}>
 					{currentValue !== undefined ? currentValue.toFixed(2) : "N/A"}
 				</div>
 				{trendData.length > 0 && (

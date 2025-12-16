@@ -1,6 +1,7 @@
 import * as React from "react";
 import { CscStats } from "../../../models/csc-stats-types";
 import { CollapsibleSection, SectionIcons } from "./CollapsibleSection";
+import { ColorblindColors } from "../utils";
 
 interface TeamSummaryProps {
 	players: Array<{ name: string; stats?: CscStats }>;
@@ -11,6 +12,7 @@ interface TeamSummaryProps {
 	isExpanded?: boolean;
 	onToggleExpand?: (expanded: boolean) => void;
 	colorblindMode?: boolean;
+	customColors?: ColorblindColors;
 }
 
 interface TeamMetrics {
@@ -141,48 +143,66 @@ const calculateTeamMetrics = (
 	};
 };
 
-export function TeamSummary({ players, tierAverages, playerTargets, playerRoles, onHide, isExpanded, onToggleExpand, colorblindMode = false }: TeamSummaryProps) {
+export function TeamSummary({ players, tierAverages, playerTargets, playerRoles, onHide, isExpanded, onToggleExpand, colorblindMode = false, customColors }: TeamSummaryProps) {
 	const metrics = React.useMemo(
 		() => calculateTeamMetrics(players, tierAverages, playerTargets, playerRoles),
 		[players, tierAverages, playerTargets, playerRoles]
 	);
 
-	const getRatingColor = (current: number, target: number) => {
+	const getRatingColor = (current: number, target: number): { className: string; style: React.CSSProperties } => {
 		const diff = current - target;
-		if (diff >= 0.1) return colorblindMode ? "text-cyan-400" : "text-green-400";
-		if (diff >= 0) return "text-blue-400";
-		if (diff >= -0.05) return colorblindMode ? "text-orange-400" : "text-yellow-400";
-		return colorblindMode ? "text-purple-400" : "text-red-400";
+		if (colorblindMode && customColors) {
+			if (diff >= 0.1) return { className: "", style: { color: customColors.good } };
+			if (diff >= 0) return { className: "", style: { color: customColors.atTarget } };
+			if (diff >= -0.05) return { className: "", style: { color: customColors.warning } };
+			return { className: "", style: { color: customColors.bad } };
+		}
+		if (diff >= 0.1) return { className: colorblindMode ? "text-cyan-400" : "text-green-400", style: {} };
+		if (diff >= 0) return { className: "text-blue-400", style: {} };
+		if (diff >= -0.05) return { className: colorblindMode ? "text-orange-400" : "text-yellow-400", style: {} };
+		return { className: colorblindMode ? "text-purple-400" : "text-red-400", style: {} };
 	};
 
-	const getODColor = (current: number, target: number) => {
+	const getODColor = (current: number, target: number): { className: string; style: React.CSSProperties } => {
 		const diff = current - target;
-		if (diff >= 0.05) return colorblindMode ? "text-cyan-400" : "text-green-400";
-		if (diff >= 0) return "text-blue-400";
-		if (diff >= -0.03) return colorblindMode ? "text-orange-400" : "text-yellow-400";
-		return colorblindMode ? "text-purple-400" : "text-red-400";
+		if (colorblindMode && customColors) {
+			if (diff >= 0.05) return { className: "", style: { color: customColors.good } };
+			if (diff >= 0) return { className: "", style: { color: customColors.atTarget } };
+			if (diff >= -0.03) return { className: "", style: { color: customColors.warning } };
+			return { className: "", style: { color: customColors.bad } };
+		}
+		if (diff >= 0.05) return { className: colorblindMode ? "text-cyan-400" : "text-green-400", style: {} };
+		if (diff >= 0) return { className: "text-blue-400", style: {} };
+		if (diff >= -0.03) return { className: colorblindMode ? "text-orange-400" : "text-yellow-400", style: {} };
+		return { className: colorblindMode ? "text-purple-400" : "text-red-400", style: {} };
 	};
 
 	// Adjust health color for colorblind mode
-	const getHealthColor = () => {
-		if (colorblindMode) {
-			if (metrics.healthScore >= 90) return "text-cyan-400";
-			if (metrics.healthScore >= 75) return "text-blue-400";
-			if (metrics.healthScore >= 60) return "text-orange-400";
-			if (metrics.healthScore >= 40) return "text-orange-500";
-			return "text-purple-400";
+	const getHealthColor = (): { className: string; style: React.CSSProperties } => {
+		if (colorblindMode && customColors) {
+			if (metrics.healthScore >= 90) return { className: "", style: { color: customColors.good } };
+			if (metrics.healthScore >= 75) return { className: "", style: { color: customColors.atTarget } };
+			if (metrics.healthScore >= 60) return { className: "", style: { color: customColors.warning } };
+			return { className: "", style: { color: customColors.bad } };
 		}
-		return metrics.healthColor;
+		if (colorblindMode) {
+			if (metrics.healthScore >= 90) return { className: "text-cyan-400", style: {} };
+			if (metrics.healthScore >= 75) return { className: "text-blue-400", style: {} };
+			if (metrics.healthScore >= 60) return { className: "text-orange-400", style: {} };
+			if (metrics.healthScore >= 40) return { className: "text-orange-500", style: {} };
+			return { className: "text-purple-400", style: {} };
+		}
+		return { className: metrics.healthColor, style: {} };
 	};
-	const healthColor = getHealthColor();
+	const healthColorResult = getHealthColor();
 
 	const headerExtra = (
 		<div className="flex items-center gap-2 ml-4">
 			<span className="text-sm text-gray-400">Health:</span>
-			<span className={`text-lg font-bold ${healthColor}`}>
+			<span className={`text-lg font-bold ${healthColorResult.className}`} style={healthColorResult.style}>
 				{metrics.healthScore}
 			</span>
-			<span className={`text-sm ${healthColor}`}>
+			<span className={`text-sm ${healthColorResult.className}`} style={healthColorResult.style}>
 				({metrics.healthLabel})
 			</span>
 		</div>
@@ -205,7 +225,7 @@ export function TeamSummary({ players, tierAverages, playerTargets, playerRoles,
 							<div className="space-y-2">
 								<div className="flex justify-between items-center">
 									<span className="text-sm text-gray-300">Team Avg:</span>
-									<span className={`text-lg font-bold ${getRatingColor(metrics.avgRating, metrics.targetRating)}`}>
+									<span className={`text-lg font-bold ${getRatingColor(metrics.avgRating, metrics.targetRating).className}`} style={getRatingColor(metrics.avgRating, metrics.targetRating).style}>
 										{metrics.avgRating.toFixed(2)}
 									</span>
 								</div>
@@ -217,7 +237,7 @@ export function TeamSummary({ players, tierAverages, playerTargets, playerRoles,
 								</div>
 								<div className="flex justify-between items-center pt-2 border-t border-gray-700">
 									<span className="text-sm text-gray-300">Difference:</span>
-									<span className={`text-sm font-semibold ${getRatingColor(metrics.avgRating, metrics.targetRating)}`}>
+									<span className={`text-sm font-semibold ${getRatingColor(metrics.avgRating, metrics.targetRating).className}`} style={getRatingColor(metrics.avgRating, metrics.targetRating).style}>
 										{(metrics.avgRating - metrics.targetRating >= 0 ? '+' : '')}
 										{(metrics.avgRating - metrics.targetRating).toFixed(2)}
 									</span>
@@ -231,7 +251,7 @@ export function TeamSummary({ players, tierAverages, playerTargets, playerRoles,
 							<div className="space-y-2">
 								<div className="flex justify-between items-center">
 									<span className="text-sm text-gray-300">Team Avg OD/R:</span>
-									<span className={`text-lg font-bold ${getODColor(metrics.avgOdaR, metrics.targetOdaR)}`}>
+									<span className={`text-lg font-bold ${getODColor(metrics.avgOdaR, metrics.targetOdaR).className}`} style={getODColor(metrics.avgOdaR, metrics.targetOdaR).style}>
 										{metrics.avgOdaR.toFixed(2)}
 									</span>
 								</div>
@@ -243,7 +263,7 @@ export function TeamSummary({ players, tierAverages, playerTargets, playerRoles,
 								</div>
 								<div className="flex justify-between items-center pt-2 border-t border-gray-700">
 									<span className="text-sm text-gray-300">Difference:</span>
-									<span className={`text-sm font-semibold ${getODColor(metrics.avgOdaR, metrics.targetOdaR)}`}>
+									<span className={`text-sm font-semibold ${getODColor(metrics.avgOdaR, metrics.targetOdaR).className}`} style={getODColor(metrics.avgOdaR, metrics.targetOdaR).style}>
 										{(metrics.avgOdaR - metrics.targetOdaR >= 0 ? '+' : '')}
 										{(metrics.avgOdaR - metrics.targetOdaR).toFixed(2)}
 									</span>
@@ -256,15 +276,24 @@ export function TeamSummary({ players, tierAverages, playerTargets, playerRoles,
 							<h4 className="text-sm font-semibold text-gray-400 mb-3">Role Balance</h4>
 							<div className="space-y-2">
 								<div className="flex items-center gap-2">
-									<span className={`h-2 w-2 rounded-full ${metrics.roleBalance.hasIGL ? 'bg-green-400' : 'bg-red-400'}`}></span>
+									<span 
+										className={`h-2 w-2 rounded-full ${!colorblindMode ? (metrics.roleBalance.hasIGL ? 'bg-green-400' : 'bg-red-400') : !customColors ? (metrics.roleBalance.hasIGL ? 'bg-cyan-400' : 'bg-purple-400') : ''}`}
+										style={colorblindMode && customColors ? { backgroundColor: metrics.roleBalance.hasIGL ? customColors.good : customColors.bad } : {}}
+									></span>
 									<span className="text-sm text-gray-300">IGL Assigned</span>
 								</div>
 								<div className="flex items-center gap-2">
-									<span className={`h-2 w-2 rounded-full ${metrics.roleBalance.hasAWPer ? 'bg-green-400' : 'bg-red-400'}`}></span>
+									<span 
+										className={`h-2 w-2 rounded-full ${!colorblindMode ? (metrics.roleBalance.hasAWPer ? 'bg-green-400' : 'bg-red-400') : !customColors ? (metrics.roleBalance.hasAWPer ? 'bg-cyan-400' : 'bg-purple-400') : ''}`}
+										style={colorblindMode && customColors ? { backgroundColor: metrics.roleBalance.hasAWPer ? customColors.good : customColors.bad } : {}}
+									></span>
 									<span className="text-sm text-gray-300">AWPer Assigned</span>
 								</div>
 								<div className="flex items-center gap-2">
-									<span className={`h-2 w-2 rounded-full ${metrics.roleBalance.hasEntry ? 'bg-green-400' : 'bg-red-400'}`}></span>
+									<span 
+										className={`h-2 w-2 rounded-full ${!colorblindMode ? (metrics.roleBalance.hasEntry ? 'bg-green-400' : 'bg-red-400') : !customColors ? (metrics.roleBalance.hasEntry ? 'bg-cyan-400' : 'bg-purple-400') : ''}`}
+										style={colorblindMode && customColors ? { backgroundColor: metrics.roleBalance.hasEntry ? customColors.good : customColors.bad } : {}}
+									></span>
 									<span className="text-sm text-gray-300">Entry Assigned</span>
 								</div>
 								

@@ -1,6 +1,66 @@
 import { CscStats } from "../../models/csc-stats-types";
 import { AVAILABLE_STATS } from "./types";
 
+// Colorblind color configuration
+export interface ColorblindColors {
+	good: string;      // Above target (green -> cyan)
+	atTarget: string;  // At target (blue stays blue)
+	warning: string;   // Close to target (yellow -> orange)
+	bad: string;       // Below target (red -> purple)
+}
+
+export const DEFAULT_COLORBLIND_COLORS: ColorblindColors = {
+	good: "#22d3ee",     // cyan-400
+	atTarget: "#60a5fa", // blue-400
+	warning: "#fb923c",  // orange-400
+	bad: "#c084fc",      // purple-400
+};
+
+export const DEFAULT_NORMAL_COLORS: ColorblindColors = {
+	good: "#4ade80",     // green-400
+	atTarget: "#60a5fa", // blue-400
+	warning: "#facc15",  // yellow-400
+	bad: "#f87171",      // red-400
+};
+
+// Parse colorblind colors from localStorage string safely
+export const parseColorblindColors = (colorsString: string): ColorblindColors => {
+	try {
+		const parsed = JSON.parse(colorsString);
+		if (parsed && typeof parsed.good === 'string' && typeof parsed.warning === 'string' && typeof parsed.bad === 'string') {
+			// Handle legacy 3-color format by adding atTarget
+			if (!parsed.atTarget) {
+				parsed.atTarget = "#60a5fa"; // blue-400
+			}
+			return parsed;
+		}
+		return DEFAULT_COLORBLIND_COLORS;
+	} catch {
+		return DEFAULT_COLORBLIND_COLORS;
+	}
+};
+
+// Get inline style for custom colors (since Tailwind can't use dynamic values)
+export const getCustomColorStyle = (
+	colorType: 'good' | 'warning' | 'bad',
+	colorblindMode: boolean,
+	customColors?: ColorblindColors
+): React.CSSProperties => {
+	if (!colorblindMode) return {};
+	const colors = customColors || DEFAULT_COLORBLIND_COLORS;
+	return { color: colors[colorType] };
+};
+
+export const getCustomBgColorStyle = (
+	colorType: 'good' | 'warning' | 'bad',
+	colorblindMode: boolean,
+	customColors?: ColorblindColors
+): React.CSSProperties => {
+	if (!colorblindMode) return {};
+	const colors = customColors || DEFAULT_COLORBLIND_COLORS;
+	return { backgroundColor: colors[colorType] };
+};
+
 export const getTierAverage = (
 	statsCache: any,
 	tierName: string,
@@ -33,29 +93,78 @@ export const getPlayerTarget = (
 	return getTierAverage(statsCache, tierName, statKey);
 };
 
+// Determine which color category a stat falls into
+export type StatColorCategory = 'good' | 'onTarget' | 'warning' | 'bad';
+
+export const getStatColorCategory = (
+	currentValue: number | undefined,
+	targetValue: number | undefined,
+	statKey: string
+): StatColorCategory => {
+	if (!currentValue || !targetValue) return 'onTarget';
+	const diff = currentValue - targetValue;
+	const threshold = statKey === "rating" ? 0.03 : targetValue * 0.05;
+	
+	if (diff > threshold) return 'good';
+	if (diff >= 0) return 'onTarget';
+	if (diff >= -threshold) return 'warning';
+	return 'bad';
+};
+
 export const getStatColor = (
 	currentValue: number | undefined,
 	targetValue: number | undefined,
 	statKey: string,
-	colorblindMode: boolean = false
+	colorblindMode: boolean = false,
+	customColors?: ColorblindColors
 ): string => {
 	if (!currentValue || !targetValue) return "text-gray-300";
-	const diff = currentValue - targetValue;
-	const threshold = statKey === "rating" ? 0.03 : targetValue * 0.05;
+	
+	const category = getStatColorCategory(currentValue, targetValue, statKey);
+	
+	if (colorblindMode && customColors) {
+		// Return empty class - will use inline style instead
+		return "";
+	}
 	
 	if (colorblindMode) {
-		// Colorblind-friendly palette using blue/orange/purple
-		if (diff > threshold) return "text-cyan-400";      // Good - cyan (distinguishable from red)
-		if (diff >= 0) return "text-blue-400";              // On target - blue
-		if (diff >= -threshold) return "text-orange-400";   // Slightly below - orange
-		return "text-purple-400";                           // Below target - purple
+		// Default colorblind palette
+		switch (category) {
+			case 'good': return "text-cyan-400";
+			case 'onTarget': return "text-blue-400";
+			case 'warning': return "text-orange-400";
+			case 'bad': return "text-purple-400";
+		}
 	}
 	
 	// Default palette
-	if (diff > threshold) return "text-green-400";
-	if (diff >= 0) return "text-blue-400";
-	if (diff >= -threshold) return "text-yellow-400";
-	return "text-red-400";
+	switch (category) {
+		case 'good': return "text-green-400";
+		case 'onTarget': return "text-blue-400";
+		case 'warning': return "text-yellow-400";
+		case 'bad': return "text-red-400";
+	}
+};
+
+// Get inline style for stat colors when using custom colorblind colors
+export const getStatColorStyle = (
+	currentValue: number | undefined,
+	targetValue: number | undefined,
+	statKey: string,
+	colorblindMode: boolean,
+	customColors?: ColorblindColors
+): React.CSSProperties => {
+	if (!colorblindMode || !customColors) return {};
+	if (!currentValue || !targetValue) return { color: '#d1d5db' }; // gray-300
+	
+	const category = getStatColorCategory(currentValue, targetValue, statKey);
+	
+	switch (category) {
+		case 'good': return { color: customColors.good };
+		case 'onTarget': return { color: customColors.atTarget };
+		case 'warning': return { color: customColors.warning };
+		case 'bad': return { color: customColors.bad };
+	}
 };
 
 export const getStatLabel = (statKey: string): string => {
@@ -64,20 +173,97 @@ export const getStatLabel = (statKey: string): string => {
 };
 
 // Colorblind-friendly color mapping for positive/negative indicators
-export const getPositiveColor = (colorblindMode: boolean = false): string => {
+export const getPositiveColor = (colorblindMode: boolean = false, customColors?: ColorblindColors): string => {
+	if (colorblindMode && customColors) return "";
 	return colorblindMode ? "text-cyan-400" : "text-green-400";
 };
 
-export const getNegativeColor = (colorblindMode: boolean = false): string => {
+export const getAtTargetColor = (colorblindMode: boolean = false, customColors?: ColorblindColors): string => {
+	if (colorblindMode && customColors) return "";
+	return "text-blue-400";
+};
+
+export const getNegativeColor = (colorblindMode: boolean = false, customColors?: ColorblindColors): string => {
+	if (colorblindMode && customColors) return "";
 	return colorblindMode ? "text-purple-400" : "text-red-400";
 };
 
+export const getWarningColor = (colorblindMode: boolean = false, customColors?: ColorblindColors): string => {
+	if (colorblindMode && customColors) return "";
+	return colorblindMode ? "text-orange-400" : "text-yellow-400";
+};
+
+export const getPositiveColorStyle = (colorblindMode: boolean, customColors?: ColorblindColors): React.CSSProperties => {
+	if (!colorblindMode || !customColors) return {};
+	return { color: customColors.good };
+};
+
+export const getAtTargetColorStyle = (colorblindMode: boolean, customColors?: ColorblindColors): React.CSSProperties => {
+	if (!colorblindMode || !customColors) return {};
+	return { color: customColors.atTarget };
+};
+
+export const getNegativeColorStyle = (colorblindMode: boolean, customColors?: ColorblindColors): React.CSSProperties => {
+	if (!colorblindMode || !customColors) return {};
+	return { color: customColors.bad };
+};
+
+export const getWarningColorStyle = (colorblindMode: boolean, customColors?: ColorblindColors): React.CSSProperties => {
+	if (!colorblindMode || !customColors) return {};
+	return { color: customColors.warning };
+};
+
+// Background color variants
 export const getPositiveBgColor = (colorblindMode: boolean = false): string => {
 	return colorblindMode ? "bg-cyan-500/20" : "bg-green-500/20";
 };
 
 export const getNegativeBgColor = (colorblindMode: boolean = false): string => {
 	return colorblindMode ? "bg-purple-500/20" : "bg-red-500/20";
+};
+
+export const getPositiveBgStyle = (colorblindMode: boolean, customColors?: ColorblindColors): React.CSSProperties => {
+	if (!colorblindMode || !customColors) return {};
+	return { backgroundColor: customColors.good + '33' }; // 33 = 20% opacity in hex
+};
+
+export const getNegativeBgStyle = (colorblindMode: boolean, customColors?: ColorblindColors): React.CSSProperties => {
+	if (!colorblindMode || !customColors) return {};
+	return { backgroundColor: customColors.bad + '33' };
+};
+
+// Score-based color helpers for components like RoleFitScore
+// Note: Scores use 4 tiers: 85+ (good), 70-84 (atTarget), 50-69 (warning), <50 (bad)
+export const getScoreColor = (score: number, colorblindMode: boolean = false, customColors?: ColorblindColors): string => {
+	if (colorblindMode && customColors) return "";
+	if (score >= 85) return colorblindMode ? "text-cyan-400" : "text-green-400";
+	if (score >= 70) return "text-blue-400";
+	if (score >= 50) return colorblindMode ? "text-orange-400" : "text-yellow-400";
+	return colorblindMode ? "text-purple-400" : "text-red-400";
+};
+
+export const getScoreColorStyle = (score: number, colorblindMode: boolean, customColors?: ColorblindColors): React.CSSProperties => {
+	if (!colorblindMode || !customColors) return {};
+	if (score >= 85) return { color: customColors.good };
+	if (score >= 70) return { color: customColors.atTarget };
+	if (score >= 50) return { color: customColors.warning };
+	return { color: customColors.bad };
+};
+
+export const getScoreBgColor = (score: number, colorblindMode: boolean = false, customColors?: ColorblindColors): string => {
+	if (colorblindMode && customColors) return "";
+	if (score >= 85) return colorblindMode ? "bg-cyan-500" : "bg-green-500";
+	if (score >= 70) return "bg-blue-500";
+	if (score >= 50) return colorblindMode ? "bg-orange-500" : "bg-yellow-500";
+	return colorblindMode ? "bg-purple-500" : "bg-red-500";
+};
+
+export const getScoreBgStyle = (score: number, colorblindMode: boolean, customColors?: ColorblindColors): React.CSSProperties => {
+	if (!colorblindMode || !customColors) return {};
+	if (score >= 85) return { backgroundColor: customColors.good };
+	if (score >= 70) return { backgroundColor: customColors.atTarget };
+	if (score >= 50) return { backgroundColor: customColors.warning };
+	return { backgroundColor: customColors.bad };
 };
 
 export const handleExportSettings = (

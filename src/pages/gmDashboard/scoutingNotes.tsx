@@ -12,7 +12,7 @@ import { franchiseImages } from "../../common/images/franchise";
 import { CscStats } from "../../models/csc-stats-types";
 import { GMSidebar } from "./components/GMSidebar";
 import { PLAYER_ROLES, PlayerRole } from "./types";
-import { handleExportSettings, createImportHandler } from "./utils";
+import { handleExportSettings, createImportHandler, parseColorblindColors } from "./utils";
 
 const getFranchiseImage = (prefix: string): string => {
 	return franchiseImages[prefix] || "";
@@ -45,6 +45,7 @@ export function ScoutingNotes() {
 	const [hiddenSections, setHiddenSections] = useLocalStorage("dashboardHiddenSections", "[]");
 	const [collapsedSections, setCollapsedSections] = useLocalStorage("dashboardCollapsedSections", "[]");
 	const [colorblindMode, setColorblindMode] = useLocalStorage("colorblindMode", "false");
+	const [colorblindColors, setColorblindColors] = useLocalStorage("colorblindColors", JSON.stringify({ good: "#22d3ee", warning: "#fb923c", bad: "#c084fc" }));
 	const [showAddPlayerModal, setShowAddPlayerModal] = React.useState(false);
 	const [playerSearchQuery, setPlayerSearchQuery] = React.useState("");
 	const fileInputRef = React.useRef<HTMLInputElement>(null);
@@ -264,6 +265,8 @@ export function ScoutingNotes() {
 				onFileChange={handleFileChange}
 				colorblindMode={colorblindMode === "true"}
 				onToggleColorblindMode={() => setColorblindMode(colorblindMode === "true" ? "false" : "true")}
+				colorblindColors={parseColorblindColors(colorblindColors)}
+				onColorblindColorsChange={(colors) => setColorblindColors(JSON.stringify(colors))}
 			/>
 
 			{/* Main Content */}

@@ -2,6 +2,7 @@ import * as React from "react";
 import { Link } from "wouter";
 import { Franchise } from "../../../models/franchise-types";
 import { franchiseImages } from "../../../common/images/franchise";
+import { ColorblindColors, DEFAULT_COLORBLIND_COLORS } from "../utils";
 
 interface GMSidebarProps {
 	currentFranchise: Franchise | undefined;
@@ -13,6 +14,8 @@ interface GMSidebarProps {
 	onFileChange: (event: React.ChangeEvent<HTMLInputElement>) => void;
 	colorblindMode?: boolean;
 	onToggleColorblindMode?: () => void;
+	colorblindColors?: ColorblindColors;
+	onColorblindColorsChange?: (colors: ColorblindColors) => void;
 }
 
 const getFranchiseImage = (prefix: string): string => {
@@ -28,7 +31,9 @@ export function GMSidebar({
 	fileInputRef,
 	onFileChange,
 	colorblindMode,
-	onToggleColorblindMode
+	onToggleColorblindMode,
+	colorblindColors = DEFAULT_COLORBLIND_COLORS,
+	onColorblindColorsChange
 }: GMSidebarProps) {
 	return (
 		<div className="w-64 bg-gray-800 border-r border-gray-700 flex flex-col">
@@ -125,19 +130,75 @@ export function GMSidebar({
 					/>
 
 					{onToggleColorblindMode && (
-						<button
-							onClick={onToggleColorblindMode}
-							className="w-full flex items-center gap-3 px-4 py-3 text-left text-gray-300 hover:text-white hover:bg-gray-700 rounded-lg transition-colors"
-						>
-							<svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-								<path d="M10 12a2 2 0 100-4 2 2 0 000 4z" />
-								<path fillRule="evenodd" d="M.458 10C1.732 5.943 5.522 3 10 3s8.268 2.943 9.542 7c-1.274 4.057-5.064 7-9.542 7S1.732 14.057.458 10zM14 10a4 4 0 11-8 0 4 4 0 018 0z" clipRule="evenodd" />
-							</svg>
-							<span className="font-medium">Colorblind Mode</span>
-							<div className={`ml-auto w-10 h-5 rounded-full transition-colors ${colorblindMode ? 'bg-blue-600' : 'bg-gray-600'}`}>
-								<div className={`w-4 h-4 rounded-full bg-white mt-0.5 transition-transform ${colorblindMode ? 'translate-x-5' : 'translate-x-0.5'}`} />
-							</div>
-						</button>
+						<div>
+							<button
+								onClick={onToggleColorblindMode}
+								className="w-full flex items-center gap-3 px-4 py-3 text-left text-gray-300 hover:text-white hover:bg-gray-700 rounded-lg transition-colors"
+							>
+								<svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+									<path d="M10 12a2 2 0 100-4 2 2 0 000 4z" />
+									<path fillRule="evenodd" d="M.458 10C1.732 5.943 5.522 3 10 3s8.268 2.943 9.542 7c-1.274 4.057-5.064 7-9.542 7S1.732 14.057.458 10zM14 10a4 4 0 11-8 0 4 4 0 018 0z" clipRule="evenodd" />
+								</svg>
+								<span className="font-medium">Colorblind Mode</span>
+								<div className={`ml-auto w-10 h-5 rounded-full transition-colors ${colorblindMode ? 'bg-blue-600' : 'bg-gray-600'}`}>
+									<div className={`w-4 h-4 rounded-full bg-white mt-0.5 transition-transform ${colorblindMode ? 'translate-x-5' : 'translate-x-0.5'}`} />
+								</div>
+							</button>
+							
+							{/* Color customization options when colorblind mode is enabled */}
+							{colorblindMode && onColorblindColorsChange && (
+								<div className="mt-2 ml-4 mr-2 p-3 bg-gray-900 rounded-lg border border-gray-700 space-y-3">
+									<div className="text-xs text-gray-400 font-medium mb-2">Custom Colors</div>
+									
+									<div className="flex items-center justify-between">
+										<span className="text-xs text-gray-300">Above Target</span>
+										<input
+											type="color"
+											value={colorblindColors.good}
+											onChange={(e) => onColorblindColorsChange({ ...colorblindColors, good: e.target.value })}
+											className="w-8 h-6 rounded cursor-pointer border border-gray-600"
+										/>
+									</div>
+									
+									<div className="flex items-center justify-between">
+										<span className="text-xs text-gray-300">At Target</span>
+										<input
+											type="color"
+											value={colorblindColors.atTarget || "#60a5fa"}
+											onChange={(e) => onColorblindColorsChange({ ...colorblindColors, atTarget: e.target.value })}
+											className="w-8 h-6 rounded cursor-pointer border border-gray-600"
+										/>
+									</div>
+									
+									<div className="flex items-center justify-between">
+										<span className="text-xs text-gray-300">Close to Target</span>
+										<input
+											type="color"
+											value={colorblindColors.warning}
+											onChange={(e) => onColorblindColorsChange({ ...colorblindColors, warning: e.target.value })}
+											className="w-8 h-6 rounded cursor-pointer border border-gray-600"
+										/>
+									</div>
+									
+									<div className="flex items-center justify-between">
+										<span className="text-xs text-gray-300">Below Target</span>
+										<input
+											type="color"
+											value={colorblindColors.bad}
+											onChange={(e) => onColorblindColorsChange({ ...colorblindColors, bad: e.target.value })}
+											className="w-8 h-6 rounded cursor-pointer border border-gray-600"
+										/>
+									</div>
+									
+									<button
+										onClick={() => onColorblindColorsChange(DEFAULT_COLORBLIND_COLORS)}
+										className="w-full mt-2 px-2 py-1 text-xs text-gray-400 hover:text-white bg-gray-800 hover:bg-gray-700 rounded transition-colors"
+									>
+										Reset to Defaults
+									</button>
+								</div>
+							)}
+						</div>
 					)}
 				</div>
 			</nav>

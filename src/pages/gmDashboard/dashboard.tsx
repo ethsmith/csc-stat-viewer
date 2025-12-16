@@ -22,9 +22,12 @@ import { PlayerTargets, PlayerRoles, PLAYER_ROLES } from "./types";
 import {
 	getPlayerTarget,
 	getStatColor,
+	getStatColorStyle,
 	getStatLabel,
 	handleExportSettings,
-	createImportHandler
+	createImportHandler,
+	parseColorblindColors,
+	ColorblindColors
 } from "./utils";
 import { generateInsights } from "./insightsEngine";
 
@@ -45,6 +48,7 @@ export function Dashboard() {
 	const [collapsedSections, setCollapsedSections] = useLocalStorage("dashboardCollapsedSections", "[]");
 	const [scoutingNotes, setScoutingNotes] = useLocalStorage("scoutingNotes", "{}");
 	const [colorblindMode, setColorblindMode] = useLocalStorage("colorblindMode", "false");
+	const [colorblindColors, setColorblindColors] = useLocalStorage("colorblindColors", JSON.stringify({ good: "#22d3ee", warning: "#fb923c", bad: "#c084fc" }));
 	const [showHiddenMenu, setShowHiddenMenu] = React.useState(false);
 	const fileInputRef = React.useRef<HTMLInputElement>(null);
 	
@@ -500,6 +504,8 @@ export function Dashboard() {
 				onFileChange={handleImportSettings}
 				colorblindMode={colorblindMode === "true"}
 				onToggleColorblindMode={() => setColorblindMode(colorblindMode === "true" ? "false" : "true")}
+				colorblindColors={parseColorblindColors(colorblindColors)}
+				onColorblindColorsChange={(colors) => setColorblindColors(JSON.stringify(colors))}
 			/>
 
 			{/* Main Content */}
@@ -628,6 +634,7 @@ export function Dashboard() {
 														isExpanded={isSectionExpanded("teamSummary")}
 														onToggleExpand={(expanded) => toggleSectionCollapse("teamSummary", expanded)}
 														colorblindMode={colorblindMode === "true"}
+														customColors={parseColorblindColors(colorblindColors)}
 													/>
 												);
 											case "roleFitScore":
@@ -643,6 +650,7 @@ export function Dashboard() {
 														isExpanded={isSectionExpanded("roleFitScore")}
 														onToggleExpand={(expanded) => toggleSectionCollapse("roleFitScore", expanded)}
 														colorblindMode={colorblindMode === "true"}
+														customColors={parseColorblindColors(colorblindColors)}
 													/>
 												);
 											case "playerTable":
@@ -703,7 +711,9 @@ export function Dashboard() {
 																							const playerStat = getPlayerStats(player.name, selectedTeam.tier.name);
 																							const currentValue = playerStat?.[statKey as keyof CscStats] as number | undefined;
 																							const targetValue = getPlayerTarget(parsedPlayerTargets, statsCache, player.name, statKey, selectedTeam.tier.name);
-																							const statColor = getStatColor(currentValue, targetValue, statKey, colorblindMode === "true");
+																							const parsedColors = parseColorblindColors(colorblindColors);
+																							const statColor = getStatColor(currentValue, targetValue, statKey, colorblindMode === "true", parsedColors);
+																							const statColorStyle = getStatColorStyle(currentValue, targetValue, statKey, colorblindMode === "true", parsedColors);
 																							
 																							return (
 																								<PlayerStatCell
@@ -713,6 +723,7 @@ export function Dashboard() {
 																									statKey={statKey}
 																									currentValue={currentValue}
 																									statColor={statColor}
+																									statColorStyle={statColorStyle}
 																									season={season}
 																								/>
 																							);

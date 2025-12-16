@@ -12,8 +12,11 @@ import { PlayerTargets, PlayerRoles, PLAYER_ROLES, AVAILABLE_STATS } from "./typ
 import {
 	getPlayerTarget,
 	getStatColor,
+	getStatColorStyle,
 	handleExportSettings,
-	createImportHandler
+	createImportHandler,
+	parseColorblindColors,
+	ColorblindColors
 } from "./utils";
 
 export function SetTargets() {
@@ -26,6 +29,7 @@ export function SetTargets() {
 	const [statSearchQuery, setStatSearchQuery] = React.useState("");
 	const [showStatSelector, setShowStatSelector] = React.useState(false);
 	const [colorblindMode, setColorblindMode] = useLocalStorage("colorblindMode", "false");
+	const [colorblindColors, setColorblindColors] = useLocalStorage("colorblindColors", JSON.stringify({ good: "#22d3ee", warning: "#fb923c", bad: "#c084fc" }));
 	const [, setLocation] = useLocation();
 	const fileInputRef = React.useRef<HTMLInputElement>(null);
 	
@@ -171,6 +175,8 @@ export function SetTargets() {
 				onFileChange={handleImportSettings}
 				colorblindMode={colorblindMode === "true"}
 				onToggleColorblindMode={() => setColorblindMode(colorblindMode === "true" ? "false" : "true")}
+				colorblindColors={parseColorblindColors(colorblindColors)}
+				onColorblindColorsChange={(colors) => setColorblindColors(JSON.stringify(colors))}
 			/>
 
 			{/* Main Content */}
@@ -335,7 +341,9 @@ export function SetTargets() {
 															const currentValue = playerStats?.[statKey as keyof CscStats] as number | undefined;
 															const explicitTarget = playerTargetData[statKey];
 															const targetValue = getPlayerTarget(parsedPlayerTargets, statsCache, player.name, statKey, selectedTeam.tier.name);
-															const statColor = getStatColor(currentValue, targetValue, statKey, colorblindMode === "true");
+															const parsedColors = parseColorblindColors(colorblindColors);
+															const statColor = getStatColor(currentValue, targetValue, statKey, colorblindMode === "true", parsedColors);
+															const statColorStyle = getStatColorStyle(currentValue, targetValue, statKey, colorblindMode === "true", parsedColors);
 															const diff = currentValue !== undefined && targetValue !== undefined
 																? (currentValue - targetValue).toFixed(2)
 																: "N/A";
@@ -343,7 +351,7 @@ export function SetTargets() {
 																return (
 																	<React.Fragment key={`${player.name}-${statKey}`}>
 																		<td className="px-2 py-4 whitespace-nowrap">
-																			<div className={`text-sm font-semibold ${statColor}`}>
+																			<div className={`text-sm font-semibold ${statColor}`} style={statColorStyle}>
 																				{currentValue !== undefined ? currentValue.toFixed(2) : "N/A"}
 																			</div>
 																		</td>
@@ -364,7 +372,7 @@ export function SetTargets() {
 																			/>
 																		</td>
 																		<td className="px-2 py-4 whitespace-nowrap">
-																			<div className={`text-sm font-semibold ${statColor}`}>
+																			<div className={`text-sm font-semibold ${statColor}`} style={statColorStyle}>
 																				{diff !== "N/A" && parseFloat(diff) > 0 ? "+" : ""}{diff}
 																			</div>
 																		</td>
@@ -409,19 +417,31 @@ export function SetTargets() {
 								<h3 className="text-lg font-bold mb-3">Color Legend</h3>
 								<div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
 									<div className="flex items-center gap-2">
-										<div className={`w-4 h-4 rounded ${colorblindMode === "true" ? "bg-cyan-400" : "bg-green-400"}`}></div>
+										<div 
+											className={`w-4 h-4 rounded ${colorblindMode !== "true" ? "bg-green-400" : ""}`}
+											style={colorblindMode === "true" ? { backgroundColor: parseColorblindColors(colorblindColors).good } : {}}
+										></div>
 										<span className="text-gray-300">Above target</span>
 									</div>
 									<div className="flex items-center gap-2">
-										<div className="w-4 h-4 bg-blue-400 rounded"></div>
+										<div 
+											className={`w-4 h-4 rounded ${colorblindMode !== "true" ? "bg-blue-400" : ""}`}
+											style={colorblindMode === "true" ? { backgroundColor: parseColorblindColors(colorblindColors).atTarget } : {}}
+										></div>
 										<span className="text-gray-300">At target</span>
 									</div>
 									<div className="flex items-center gap-2">
-										<div className={`w-4 h-4 rounded ${colorblindMode === "true" ? "bg-orange-400" : "bg-yellow-400"}`}></div>
+										<div 
+											className={`w-4 h-4 rounded ${colorblindMode !== "true" ? "bg-yellow-400" : ""}`}
+											style={colorblindMode === "true" ? { backgroundColor: parseColorblindColors(colorblindColors).warning } : {}}
+										></div>
 										<span className="text-gray-300">Close to target</span>
 									</div>
 									<div className="flex items-center gap-2">
-										<div className={`w-4 h-4 rounded ${colorblindMode === "true" ? "bg-purple-400" : "bg-red-400"}`}></div>
+										<div 
+											className={`w-4 h-4 rounded ${colorblindMode !== "true" ? "bg-red-400" : ""}`}
+											style={colorblindMode === "true" ? { backgroundColor: parseColorblindColors(colorblindColors).bad } : {}}
+										></div>
 										<span className="text-gray-300">Below target</span>
 									</div>
 								</div>
