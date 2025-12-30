@@ -4,8 +4,7 @@ import { Loading } from "../../common/components/loading";
 import { useFetchFranchisesGraph } from "../../dao/franchisesGraphQLDao";
 import { Franchise } from "../../models/franchise-types";
 import { useLocalStorage } from "../../common/hooks/localStorage";
-import { useCscStatsCache } from "../../dao/cscStatsGraphQLDao";
-import { useCachedCscSeasonAndTiers } from "../../dao/cscSeasonAndTiersDao";
+import { useStatsWithFallback } from "./hooks/useStatsWithFallback";
 import { useCscPlayersCache } from "../../dao/cscPlayerGraphQLDao";
 import { CscPlayer } from "../../models/csc-player-types";
 import { franchiseImages } from "../../common/images/franchise";
@@ -50,15 +49,14 @@ export function ScoutingNotes() {
 	const [playerSearchQuery, setPlayerSearchQuery] = React.useState("");
 	const fileInputRef = React.useRef<HTMLInputElement>(null);
 
-	const { data: seasonAndTierConfig } = useCachedCscSeasonAndTiers();
-	const season = seasonAndTierConfig?.number ?? 0;
-	const matchType = seasonAndTierConfig?.hasSeasonStarted ? "Regulation" : "Combine";
-
-	const { data: statsCache } = useCscStatsCache(
-		season,
-		matchType,
-		{ enabled: season > 0 }
-	);
+	const { 
+		statsCache, 
+		isLoading: isLoadingStats,
+		isUsingFallback,
+		currentSeason,
+		effectiveSeason 
+	} = useStatsWithFallback();
+	const season = currentSeason;
 
 	const { data: allPlayers = [] } = useCscPlayersCache(season, { enabled: season > 0 });
 
@@ -273,6 +271,16 @@ export function ScoutingNotes() {
 
 			{/* Main Content */}
 			<div className="flex-1 p-6">
+				{isUsingFallback && (
+					<div className="mb-4 p-3 bg-amber-900/50 border border-amber-600 rounded-lg flex items-center gap-2">
+						<svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-amber-400" viewBox="0 0 20 20" fill="currentColor">
+							<path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+						</svg>
+						<span className="text-amber-200 text-sm">
+							<strong>Off-season:</strong> Showing Season {effectiveSeason} stats (current season has no stats yet)
+						</span>
+					</div>
+				)}
 				{/* Team Selector */}
 				{currentFranchise && (
 					<div className="mb-6">
