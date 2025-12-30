@@ -23,6 +23,7 @@ import {
 	Dashboard,
 	SetTargets,
 	ScoutingNotes,
+	TableView,
 } from "./pages";
 import { ArticleRoutes } from "./pages/articles/routes";
 import { useDataContext } from "./DataContext";
@@ -113,6 +114,7 @@ export function Router() {
 		{ path: `/dashboard`, component: () => <Dashboard /> },
 		{ path: `/dashboard/targets`, component: () => <SetTargets /> },
 		{ path: `/dashboard/scouting`, component: () => <ScoutingNotes /> },
+		{ path: `/dashboard/table`, component: () => <TableView /> },
 		{ path: `/franchiseManagement`, component: () => <FranchiseManagement /> },
 	].concat(articleRoutes);
 

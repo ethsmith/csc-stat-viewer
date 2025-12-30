@@ -23,3 +23,4 @@ export * from "./articles";
 export * from "./gmDashboard/dashboard";
 export * from "./gmDashboard/setTargets";
 export * from "./gmDashboard/scoutingNotes";
+export * from "./gmDashboard/tableView";

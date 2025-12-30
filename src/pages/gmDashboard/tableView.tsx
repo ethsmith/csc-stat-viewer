@@ -1,0 +1,472 @@
+import * as React from "react";
+import { Container } from "../../common/components/container";
+import { Loading } from "../../common/components/loading";
+import { useFetchFranchisesGraph } from "../../dao/franchisesGraphQLDao";
+import { Franchise } from "../../models/franchise-types";
+import { useLocalStorage } from "../../common/hooks/localStorage";
+import { useStatsWithFallback } from "./hooks/useStatsWithFallback";
+import { Link } from "wouter";
+import { CscStats } from "../../models/csc-stats-types";
+import { GMSidebar } from "./components/GMSidebar";
+import { handleExportSettings, createImportHandler, parseColorblindColors, ColorblindColors } from "./utils";
+
+const ALL_STATS: { key: keyof CscStats; label: string; description: string }[] = [
+	{ key: "rating", label: "Rating", description: "Overall player rating" },
+	{ key: "kr", label: "K/R", description: "Kills per round" },
+	{ key: "adr", label: "ADR", description: "Average damage per round" },
+	{ key: "kast", label: "KAST", description: "Kill/Assist/Survive/Trade %" },
+	{ key: "impact", label: "Impact", description: "Impact rating" },
+	{ key: "hs", label: "HS%", description: "Headshot percentage" },
+	{ key: "clutchR", label: "Clutch", description: "Clutch success rate" },
+	{ key: "awpR", label: "AWP K/R", description: "AWP kills per round" },
+	{ key: "odr", label: "OD %", description: "Opening duel success rate" },
+	{ key: "odaR", label: "ODA/R", description: "Opening duel attempts per round" },
+	{ key: "tradesR", label: "Trade K/R", description: "Trade kills per round" },
+	{ key: "tRatio", label: "Traded %", description: "Deaths traded out percentage" },
+	{ key: "suppR", label: "Supp Rnds", description: "Support rounds percentage" },
+	{ key: "suppXR", label: "Flash/R", description: "Enemies flashed per round" },
+	{ key: "util", label: "Util", description: "Utility damage per round" },
+	{ key: "utilDmg", label: "Util Dmg", description: "Total utility damage" },
+	{ key: "fAssists", label: "F Assists", description: "Flash assists per round" },
+	{ key: "ef", label: "EF", description: "Enemies flashed" },
+	{ key: "kills", label: "Kills", description: "Total kills" },
+	{ key: "deaths", label: "Deaths", description: "Total deaths" },
+	{ key: "assists", label: "Assists", description: "Total assists" },
+	{ key: "gameCount", label: "Games", description: "Games played" },
+	{ key: "rounds", label: "Rounds", description: "Rounds played" },
+	{ key: "ctRating", label: "CT Rating", description: "CT side rating" },
+	{ key: "TRating", label: "T Rating", description: "T side rating" },
+	{ key: "consistency", label: "Consist.", description: "Consistency rating" },
+	{ key: "form", label: "Form", description: "Recent form" },
+	{ key: "peak", label: "Peak", description: "Peak rating" },
+	{ key: "pit", label: "Pit", description: "Lowest rating" },
+	{ key: "multiR", label: "Multi K/R", description: "Multi-kills per round" },
+	{ key: "twoK", label: "2K", description: "Double kills" },
+	{ key: "threeK", label: "3K", description: "Triple kills" },
+	{ key: "fourK", label: "4K", description: "Quad kills" },
+	{ key: "fiveK", label: "5K", description: "Aces" },
+	{ key: "cl_1", label: "1v1", description: "1v1 clutches" },
+	{ key: "cl_2", label: "1v2", description: "1v2 clutches" },
+	{ key: "cl_3", label: "1v3", description: "1v3 clutches" },
+	{ key: "cl_4", label: "1v4", description: "1v4 clutches" },
+	{ key: "cl_5", label: "1v5", description: "1v5 clutches" },
+	{ key: "saveRate", label: "Save %", description: "Save rate" },
+	{ key: "savesR", label: "Saves/R", description: "Saves per round" },
+	{ key: "adp", label: "ADP", description: "Average death placement" },
+];
+
+export function TableView() {
+	const { data: franchises = [], isLoading } = useFetchFranchisesGraph();
+	const [selectedFranchise, setSelectedFranchise] = useLocalStorage("franchise", "");
+	const [selectedTier, setSelectedTier] = React.useState<string>("");
+	const [comparePlayer, setComparePlayer] = React.useState<string>("");
+	const [playerSearchQuery, setPlayerSearchQuery] = React.useState("");
+	const [selectedPlayers, setSelectedPlayers] = React.useState<string[]>([]);
+	const [showPlayerDropdown, setShowPlayerDropdown] = React.useState(false);
+	const [colorblindMode, setColorblindMode] = useLocalStorage("colorblindMode", "false");
+	const [colorblindColors, setColorblindColors] = useLocalStorage("colorblindColors", JSON.stringify({ good: "#22d3ee", warning: "#fb923c", bad: "#c084fc" }));
+	const [playerTargets, setPlayerTargets] = useLocalStorage("playerTargets", "{}");
+	const [playerRoles, setPlayerRoles] = useLocalStorage("playerRoles", "{}");
+	const [selectedStats, setSelectedStats] = useLocalStorage("selectedTargetStats", '["rating"]');
+	const [sectionOrder, setSectionOrder] = useLocalStorage("dashboardSectionOrder", "[]");
+	const [hiddenSections, setHiddenSections] = useLocalStorage("dashboardHiddenSections", "[]");
+	const [collapsedSections, setCollapsedSections] = useLocalStorage("dashboardCollapsedSections", "[]");
+	const [scoutingNotes, setScoutingNotes] = useLocalStorage("scoutingNotes", "{}");
+	const fileInputRef = React.useRef<HTMLInputElement>(null);
+
+	const { 
+		statsCache, 
+		isLoading: isLoadingStats,
+		isUsingFallback,
+		effectiveSeason 
+	} = useStatsWithFallback();
+
+	const currentFranchise = franchises.find((f: Franchise) => f.prefix === selectedFranchise);
+
+	const availableTiers = React.useMemo(() => {
+		if (!statsCache?.data) return [];
+		return Object.keys(statsCache.data).filter(tier => {
+			const tierStats = statsCache.data[tier as keyof typeof statsCache.data];
+			return tierStats && tierStats.length > 0;
+		});
+	}, [statsCache]);
+
+	React.useEffect(() => {
+		if (availableTiers.length > 0 && !selectedTier) {
+			setSelectedTier(availableTiers[0]);
+		}
+	}, [availableTiers, selectedTier]);
+
+	const tierPlayers: CscStats[] = React.useMemo(() => {
+		if (!statsCache?.data || !selectedTier) return [];
+		return statsCache.data[selectedTier as keyof typeof statsCache.data] || [];
+	}, [statsCache, selectedTier]);
+
+	const comparePlayerStats = React.useMemo(() => {
+		if (!comparePlayer || !tierPlayers.length) return null;
+		return tierPlayers.find(p => p.name === comparePlayer) || null;
+	}, [comparePlayer, tierPlayers]);
+
+	const searchFilteredPlayers = React.useMemo(() => {
+		if (!playerSearchQuery) return tierPlayers;
+		const query = playerSearchQuery.toLowerCase();
+		return tierPlayers.filter(p => p.name.toLowerCase().includes(query));
+	}, [tierPlayers, playerSearchQuery]);
+
+	const filteredPlayers = React.useMemo(() => {
+		if (selectedPlayers.length === 0) return tierPlayers;
+		return tierPlayers.filter(p => selectedPlayers.includes(p.name));
+	}, [tierPlayers, selectedPlayers]);
+
+	const togglePlayerSelection = (playerName: string) => {
+		setSelectedPlayers(prev => 
+			prev.includes(playerName)
+				? prev.filter(n => n !== playerName)
+				: [...prev, playerName]
+		);
+	};
+
+	const getComparisonColor = (
+		value: number | undefined, 
+		compareValue: number | undefined, 
+		statKey: keyof CscStats
+	): { className: string; style?: React.CSSProperties } => {
+		if (value === undefined || compareValue === undefined) {
+			return { className: "text-gray-400" };
+		}
+
+		const isColorblind = colorblindMode === "true";
+		const colors = parseColorblindColors(colorblindColors);
+
+		const lowerIsBetter = ["deaths", "adp"].includes(statKey);
+		
+		let comparison: "above" | "at" | "below";
+		if (lowerIsBetter) {
+			if (value < compareValue) comparison = "above";
+			else if (value > compareValue) comparison = "below";
+			else comparison = "at";
+		} else {
+			if (value > compareValue) comparison = "above";
+			else if (value < compareValue) comparison = "below";
+			else comparison = "at";
+		}
+
+		if (isColorblind) {
+			switch (comparison) {
+				case "above":
+					return { className: "", style: { color: colors.good } };
+				case "at":
+					return { className: "", style: { color: colors.atTarget || "#60a5fa" } };
+				case "below":
+					return { className: "", style: { color: colors.bad } };
+			}
+		} else {
+			switch (comparison) {
+				case "above":
+					return { className: "text-green-400" };
+				case "at":
+					return { className: "text-blue-400" };
+				case "below":
+					return { className: "text-red-400" };
+			}
+		}
+	};
+
+	const handleExport = () => {
+		handleExportSettings(selectedFranchise, playerTargets, playerRoles, selectedStats, sectionOrder, hiddenSections, collapsedSections, scoutingNotes, colorblindMode, colorblindColors);
+	};
+
+	const handleImportSettings = createImportHandler(
+		setPlayerTargets,
+		setPlayerRoles,
+		setSelectedStats,
+		setSelectedFranchise,
+		setSectionOrder,
+		setHiddenSections,
+		setCollapsedSections,
+		setScoutingNotes,
+		setColorblindMode,
+		setColorblindColors
+	);
+
+	if (isLoading || isLoadingStats) {
+		return (
+			<Container>
+				<Loading />
+			</Container>
+		);
+	}
+
+	return (
+		<div className="flex min-h-screen bg-gray-900">
+			<GMSidebar
+				currentFranchise={currentFranchise}
+				currentPage="tableview"
+				onExport={handleExport}
+				onImport={() => fileInputRef.current?.click()}
+				onChangeFranchise={() => setSelectedFranchise("")}
+				fileInputRef={fileInputRef}
+				onFileChange={handleImportSettings}
+				colorblindMode={colorblindMode === "true"}
+				onToggleColorblindMode={() => setColorblindMode(colorblindMode === "true" ? "false" : "true")}
+				colorblindColors={parseColorblindColors(colorblindColors)}
+				onColorblindColorsChange={(colors) => setColorblindColors(JSON.stringify(colors))}
+			/>
+
+			<div className="flex-1 p-6 overflow-auto">
+				{isUsingFallback && (
+					<div className="mb-4 p-3 bg-amber-900/50 border border-amber-600 rounded-lg flex items-center gap-2">
+						<svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-amber-400" viewBox="0 0 20 20" fill="currentColor">
+							<path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+						</svg>
+						<span className="text-amber-200 text-sm">
+							<strong>Off-season:</strong> Showing Season {effectiveSeason} stats (current season has no stats yet)
+						</span>
+					</div>
+				)}
+
+				<div className="mb-6">
+					<h1 className="text-2xl font-bold text-white mb-4">Table View - All Players Comparison</h1>
+					
+					<div className="flex flex-wrap gap-4 items-end">
+						<div>
+							<label className="block text-sm text-gray-400 mb-1">Select Tier</label>
+							<select
+								value={selectedTier}
+								onChange={(e) => {
+									setSelectedTier(e.target.value);
+									setComparePlayer("");
+								}}
+								className="px-4 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white focus:outline-none focus:border-blue-500"
+							>
+								{availableTiers.map(tier => (
+									<option key={tier} value={tier}>{tier}</option>
+								))}
+							</select>
+						</div>
+
+						<div>
+							<label className="block text-sm text-gray-400 mb-1">Compare To Player</label>
+							<select
+								value={comparePlayer}
+								onChange={(e) => setComparePlayer(e.target.value)}
+								className="px-4 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white focus:outline-none focus:border-blue-500 min-w-[200px]"
+							>
+								<option value="">Select a player to compare...</option>
+								{tierPlayers
+									.sort((a, b) => (b.rating || 0) - (a.rating || 0))
+									.map(player => (
+										<option key={player.name} value={player.name}>
+											{player.name} ({player.rating?.toFixed(2) || "N/A"})
+										</option>
+									))}
+							</select>
+						</div>
+
+						<div className="relative">
+							<label className="block text-sm text-gray-400 mb-1">Filter Players</label>
+							<input
+								type="text"
+								placeholder="Search to add players..."
+								value={playerSearchQuery}
+								onChange={(e) => setPlayerSearchQuery(e.target.value)}
+								onFocus={() => setShowPlayerDropdown(true)}
+								className="px-4 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:border-blue-500 min-w-[250px]"
+							/>
+							{showPlayerDropdown && (
+								<>
+									<div 
+										className="fixed inset-0 z-10" 
+										onClick={() => setShowPlayerDropdown(false)}
+									/>
+									<div className="absolute top-full left-0 mt-1 w-full max-h-60 overflow-y-auto bg-gray-800 border border-gray-700 rounded-lg shadow-lg z-20">
+										{searchFilteredPlayers
+											.sort((a, b) => (b.rating || 0) - (a.rating || 0))
+											.slice(0, 20)
+											.map(player => (
+												<button
+													key={player.name}
+													onClick={() => {
+														togglePlayerSelection(player.name);
+													}}
+													className={`w-full px-3 py-2 text-left text-sm hover:bg-gray-700 flex items-center justify-between ${
+														selectedPlayers.includes(player.name) ? "bg-blue-900/30" : ""
+													}`}
+												>
+													<span className="text-white">{player.name}</span>
+													<span className="text-gray-400 text-xs">
+														{player.rating?.toFixed(2)}
+														{selectedPlayers.includes(player.name) && <span className="ml-2 text-blue-400">✓</span>}
+													</span>
+												</button>
+											))}
+										{searchFilteredPlayers.length === 0 && (
+											<div className="px-3 py-2 text-gray-400 text-sm">No players found</div>
+										)}
+									</div>
+								</>
+							)}
+						</div>
+
+						{comparePlayer && (
+							<button
+								onClick={() => setComparePlayer("")}
+								className="px-4 py-2 bg-red-600 hover:bg-red-500 text-white rounded-lg transition-colors"
+							>
+								Clear Comparison
+							</button>
+						)}
+
+						{selectedPlayers.length > 0 && (
+							<button
+								onClick={() => setSelectedPlayers([])}
+								className="px-4 py-2 bg-gray-600 hover:bg-gray-500 text-white rounded-lg transition-colors"
+							>
+								Clear Filter ({selectedPlayers.length})
+							</button>
+						)}
+					</div>
+
+					{selectedPlayers.length > 0 && (
+						<div className="mt-3 flex flex-wrap gap-2">
+							<span className="text-gray-400 text-sm">Showing:</span>
+							{selectedPlayers.map(name => (
+								<span 
+									key={name} 
+									className="inline-flex items-center gap-1 px-2 py-1 bg-gray-700 text-white text-sm rounded-lg"
+								>
+									{name}
+									<button
+										onClick={() => togglePlayerSelection(name)}
+										className="hover:text-red-400 transition-colors ml-1"
+									>
+										×
+									</button>
+								</span>
+							))}
+						</div>
+					)}
+
+					{comparePlayer && comparePlayerStats && (
+						<div className="mt-4 p-3 bg-blue-900/30 border border-blue-600 rounded-lg">
+							<span className="text-blue-200 text-sm">
+								Comparing all players to: <strong>{comparePlayer}</strong> (Rating: {comparePlayerStats.rating?.toFixed(2)})
+							</span>
+						</div>
+					)}
+				</div>
+
+				<div className="mb-4 p-3 bg-gray-800 rounded-lg border border-gray-700">
+					<h3 className="text-sm font-bold text-white mb-2">Color Legend</h3>
+					<div className="flex gap-6 text-sm">
+						<div className="flex items-center gap-2">
+							<div 
+								className={`w-4 h-4 rounded ${colorblindMode !== "true" ? "bg-green-400" : ""}`}
+								style={colorblindMode === "true" ? { backgroundColor: parseColorblindColors(colorblindColors).good } : {}}
+							></div>
+							<span className="text-gray-300">Higher than compared player</span>
+						</div>
+						<div className="flex items-center gap-2">
+							<div 
+								className={`w-4 h-4 rounded ${colorblindMode !== "true" ? "bg-blue-400" : ""}`}
+								style={colorblindMode === "true" ? { backgroundColor: parseColorblindColors(colorblindColors).atTarget } : {}}
+							></div>
+							<span className="text-gray-300">Same as compared player</span>
+						</div>
+						<div className="flex items-center gap-2">
+							<div 
+								className={`w-4 h-4 rounded ${colorblindMode !== "true" ? "bg-red-400" : ""}`}
+								style={colorblindMode === "true" ? { backgroundColor: parseColorblindColors(colorblindColors).bad } : {}}
+							></div>
+							<span className="text-gray-300">Lower than compared player</span>
+						</div>
+					</div>
+				</div>
+
+				<div className="bg-gray-800 rounded-lg border border-gray-700 overflow-hidden">
+					<div className="overflow-x-auto max-h-[calc(100vh-350px)]">
+						<table className="w-full text-sm">
+							<thead className="bg-gray-900 sticky top-0 z-10">
+								<tr>
+									<th className="px-3 py-2 text-left text-xs font-medium text-gray-400 uppercase tracking-wider sticky left-0 bg-gray-900 z-20 min-w-[150px]">
+										Player
+									</th>
+									<th className="px-3 py-2 text-left text-xs font-medium text-gray-400 uppercase tracking-wider min-w-[80px]">
+										Team
+									</th>
+									{ALL_STATS.map(stat => (
+										<th 
+											key={stat.key} 
+											className="px-2 py-2 text-center text-xs font-medium text-gray-400 uppercase tracking-wider min-w-[60px]"
+											title={stat.description}
+										>
+											{stat.label}
+										</th>
+									))}
+								</tr>
+							</thead>
+							<tbody className="divide-y divide-gray-700">
+								{filteredPlayers.length > 0 ? (
+									filteredPlayers
+										.sort((a, b) => (b.rating || 0) - (a.rating || 0))
+										.map((player, index) => {
+											const isComparePlayer = player.name === comparePlayer;
+											return (
+												<tr 
+													key={player.name} 
+													className={`hover:bg-gray-750 ${isComparePlayer ? "bg-blue-900/20" : ""}`}
+												>
+													<td className="px-3 py-2 whitespace-nowrap sticky left-0 bg-gray-800 z-10">
+														<Link href={`/players/${player.name}`}>
+															<span className={`font-medium hover:text-blue-400 cursor-pointer transition-colors ${isComparePlayer ? "text-blue-300" : "text-white"}`}>
+																{player.name}
+																{isComparePlayer && <span className="ml-2 text-xs text-blue-400">(comparing)</span>}
+															</span>
+														</Link>
+													</td>
+													<td className="px-3 py-2 whitespace-nowrap text-gray-400">
+														{player.team || "-"}
+													</td>
+													{ALL_STATS.map(stat => {
+														const value = player[stat.key] as number | undefined;
+														const compareValue = comparePlayerStats?.[stat.key] as number | undefined;
+														const colorInfo = comparePlayer && !isComparePlayer
+															? getComparisonColor(value, compareValue, stat.key)
+															: { className: "text-gray-300" };
+														
+														return (
+															<td 
+																key={stat.key} 
+																className={`px-2 py-2 text-center whitespace-nowrap ${colorInfo.className}`}
+																style={colorInfo.style}
+															>
+																{value !== undefined ? (
+																	typeof value === "number" && !Number.isInteger(value) 
+																		? value.toFixed(2) 
+																		: value
+																) : "-"}
+															</td>
+														);
+													})}
+												</tr>
+											);
+										})
+								) : (
+									<tr>
+										<td colSpan={ALL_STATS.length + 2} className="px-6 py-8 text-center text-gray-400">
+											No players found in this tier
+										</td>
+									</tr>
+								)}
+							</tbody>
+						</table>
+					</div>
+				</div>
+
+				<div className="mt-4 text-sm text-gray-500">
+					Showing {filteredPlayers.length} of {tierPlayers.length} players in {selectedTier}
+				</div>
+			</div>
+		</div>
+	);
+}

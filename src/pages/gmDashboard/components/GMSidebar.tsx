@@ -6,7 +6,7 @@ import { ColorblindColors, DEFAULT_COLORBLIND_COLORS } from "../utils";
 
 interface GMSidebarProps {
 	currentFranchise: Franchise | undefined;
-	currentPage: "dashboard" | "targets" | "scouting";
+	currentPage: "dashboard" | "targets" | "scouting" | "tableview";
 	onExport: () => void;
 	onImport: () => void;
 	onChangeFranchise: () => void;
@@ -98,6 +98,19 @@ export function GMSidebar({
 							<path d="M9 4.804A7.968 7.968 0 005.5 4c-1.255 0-2.443.29-3.5.804v10A7.969 7.969 0 015.5 14c1.669 0 3.218.51 4.5 1.385A7.962 7.962 0 0114.5 14c1.255 0 2.443.29 3.5.804v-10A7.968 7.968 0 0014.5 4c-1.255 0-2.443.29-3.5.804V12a1 1 0 11-2 0V4.804z" />
 						</svg>
 						<span className="font-medium">Scouting Notes</span>
+					</button>
+				</Link>
+
+				<Link href="/dashboard/table">
+					<button className={`w-full flex items-center gap-3 px-4 py-3 text-left rounded-lg transition-colors ${
+						currentPage === "tableview"
+							? "text-white bg-blue-600 hover:bg-blue-500"
+							: "text-gray-300 hover:text-white hover:bg-gray-700"
+					}`}>
+						<svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+							<path fillRule="evenodd" d="M5 4a3 3 0 00-3 3v6a3 3 0 003 3h10a3 3 0 003-3V7a3 3 0 00-3-3H5zm-1 9v-1h5v2H5a1 1 0 01-1-1zm7 1h4a1 1 0 001-1v-1h-5v2zm0-4h5V8h-5v2zM9 8H4v2h5V8z" clipRule="evenodd" />
+						</svg>
+						<span className="font-medium">Table View</span>
 					</button>
 				</Link>
 
