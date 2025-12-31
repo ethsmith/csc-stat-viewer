@@ -6,18 +6,19 @@ import { Franchise } from "../../models/franchise-types";
 import { useLocalStorage } from "../../common/hooks/localStorage";
 import { useStatsWithFallback } from "./hooks/useStatsWithFallback";
 import { useCscPlayersCache } from "../../dao/cscPlayerGraphQLDao";
-import { CscPlayer } from "../../models/csc-player-types";
 import { Link } from "wouter";
-import { franchiseImages } from "../../common/images/franchise";
 import { CscStats } from "../../models/csc-stats-types";
 import { GMSidebar } from "./components/GMSidebar";
+import { OffSeasonBanner } from "./components/OffSeasonBanner";
+import { TeamTabs } from "./components/TeamTabs";
+import { TierInfoCard } from "./components/TierInfoCard";
 import { InsightsPanel, Insight } from "./components/InsightsPanel";
 import { PlayerStatCell } from "./components/PlayerStatCell";
 import { TeamSummary } from "./components/TeamSummary";
 import { RoleFitScore } from "./components/RoleFitScore";
 import { DraggableSection, SectionId, DEFAULT_SECTION_ORDER, SECTION_LABELS } from "./components/DraggableSection";
 import { PlayerComparisonModal, StatComparisonBadge, ComparisonPlayerData } from "./components/PlayerComparisonModal";
-import { PlayerTargets, PlayerRoles, PLAYER_ROLES } from "./types";
+import { PlayerTargets, PlayerRoles } from "./types";
 import {
 	getPlayerTarget,
 	getStatColor,
@@ -26,14 +27,10 @@ import {
 	handleExportSettings,
 	createImportHandler,
 	parseColorblindColors,
-	ColorblindColors,
-	getPlayerTeamDisplay
+	getPlayerTeamDisplay,
+	getFranchiseImage
 } from "./utils";
 import { generateInsights } from "./insightsEngine";
-
-const getFranchiseImage = (prefix: string): string => {
-	return franchiseImages[prefix] || "";
-};
 
 export function Dashboard() {
 	const { data: franchises = [], isLoading } = useFetchFranchisesGraph();
@@ -514,58 +511,23 @@ export function Dashboard() {
 						<div className="flex-1 overflow-hidden">
 				<div className="max-w-7xl mx-auto px-4 py-8 sm:px-6 lg:px-8">
 
-			{isUsingFallback && (
-				<div className="mb-4 p-3 bg-amber-900/50 border border-amber-600 rounded-lg flex items-center gap-2">
-					<svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-amber-400" viewBox="0 0 20 20" fill="currentColor">
-						<path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
-					</svg>
-					<span className="text-amber-200 text-sm">
-						<strong>Off-season:</strong> Showing Season {effectiveSeason} stats (current season has no stats yet)
-					</span>
-				</div>
-			)}
+			{isUsingFallback && <OffSeasonBanner effectiveSeason={effectiveSeason} />}
 
 			{currentFranchise && currentFranchise.teams && currentFranchise.teams.length > 0 && (
 				<div className="mt-8">
-					<div className="border-b border-gray-700 mb-6">
-						<div className="flex gap-2 overflow-x-auto">
-							{currentFranchise.teams.map(team => (
-								<button
-									key={team.id}
-									onClick={() => setSelectedTeamId(team.id)}
-									className={`px-6 py-3 font-semibold whitespace-nowrap transition-colors border-b-2 ${
-										selectedTeamId === team.id
-											? "border-blue-500 text-blue-400"
-											: "border-transparent text-gray-400 hover:text-gray-200"
-									}`}
-								>
-									{team.name}
-									<span className="ml-2 text-xs px-2 py-1 rounded bg-gray-700">
-										{team.tier.name}
-									</span>
-								</button>
-							))}
-						</div>
-					</div>
+					<TeamTabs
+						teams={currentFranchise.teams}
+						selectedTeamId={selectedTeamId}
+						onSelectTeam={setSelectedTeamId}
+					/>
 
 					{selectedTeam && (
 						<div>
-							<div className="mb-6 p-4 bg-gray-800 rounded-lg border border-gray-700">
-								<div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-									<div>
-										<p className="text-sm text-gray-400">Tier</p>
-										<p className="text-lg font-bold">{selectedTeam.tier.name}</p>
-									</div>
-									<div>
-										<p className="text-sm text-gray-400">MMR Cap</p>
-										<p className="text-lg font-bold">{selectedTeam.tier.mmrCap}</p>
-									</div>
-									<div>
-										<p className="text-sm text-gray-400">Total Players</p>
-										<p className="text-lg font-bold">{selectedTeam.players?.length || 0}</p>
-									</div>
-								</div>
-							</div>
+							<TierInfoCard
+								tierName={selectedTeam.tier.name}
+								mmrCap={selectedTeam.tier.mmrCap}
+								playerCount={selectedTeam.players?.length || 0}
+							/>
 
 							{/* Hidden Sections Restore Button */}
 							{parsedHiddenSections.length > 0 && (

@@ -8,53 +8,10 @@ import { useStatsWithFallback } from "./hooks/useStatsWithFallback";
 import { Link } from "wouter";
 import { CscStats } from "../../models/csc-stats-types";
 import { GMSidebar } from "./components/GMSidebar";
-import { handleExportSettings, createImportHandler, parseColorblindColors, ColorblindColors, getPlayerTeamDisplay } from "./utils";
+import { OffSeasonBanner } from "./components/OffSeasonBanner";
+import { handleExportSettings, createImportHandler, parseColorblindColors, getPlayerTeamDisplay } from "./utils";
 import { useCscPlayersCache } from "../../dao/cscPlayerGraphQLDao";
-
-const ALL_STATS: { key: keyof CscStats; label: string; description: string }[] = [
-	{ key: "rating", label: "Rating", description: "Overall player rating" },
-	{ key: "kr", label: "K/R", description: "Kills per round" },
-	{ key: "adr", label: "ADR", description: "Average damage per round" },
-	{ key: "kast", label: "KAST", description: "Kill/Assist/Survive/Trade %" },
-	{ key: "impact", label: "Impact", description: "Impact rating" },
-	{ key: "hs", label: "HS%", description: "Headshot percentage" },
-	{ key: "clutchR", label: "Clutch", description: "Clutch success rate" },
-	{ key: "awpR", label: "AWP K/R", description: "AWP kills per round" },
-	{ key: "odr", label: "OD %", description: "Opening duel success rate" },
-	{ key: "odaR", label: "ODA/R", description: "Opening duel attempts per round" },
-	{ key: "tradesR", label: "Trade K/R", description: "Trade kills per round" },
-	{ key: "tRatio", label: "Traded %", description: "Deaths traded out percentage" },
-	{ key: "suppR", label: "Supp Rnds", description: "Support rounds percentage" },
-	{ key: "suppXR", label: "Flash/R", description: "Enemies flashed per round" },
-	{ key: "util", label: "Util", description: "Utility damage per round" },
-	{ key: "utilDmg", label: "Util Dmg", description: "Total utility damage" },
-	{ key: "fAssists", label: "F Assists", description: "Flash assists per round" },
-	{ key: "ef", label: "EF", description: "Enemies flashed" },
-	{ key: "kills", label: "Kills", description: "Total kills" },
-	{ key: "deaths", label: "Deaths", description: "Total deaths" },
-	{ key: "assists", label: "Assists", description: "Total assists" },
-	{ key: "gameCount", label: "Games", description: "Games played" },
-	{ key: "rounds", label: "Rounds", description: "Rounds played" },
-	{ key: "ctRating", label: "CT Rating", description: "CT side rating" },
-	{ key: "TRating", label: "T Rating", description: "T side rating" },
-	{ key: "consistency", label: "Consist.", description: "Consistency rating" },
-	{ key: "form", label: "Form", description: "Recent form" },
-	{ key: "peak", label: "Peak", description: "Peak rating" },
-	{ key: "pit", label: "Pit", description: "Lowest rating" },
-	{ key: "multiR", label: "Multi K/R", description: "Multi-kills per round" },
-	{ key: "twoK", label: "2K", description: "Double kills" },
-	{ key: "threeK", label: "3K", description: "Triple kills" },
-	{ key: "fourK", label: "4K", description: "Quad kills" },
-	{ key: "fiveK", label: "5K", description: "Aces" },
-	{ key: "cl_1", label: "1v1", description: "1v1 clutches" },
-	{ key: "cl_2", label: "1v2", description: "1v2 clutches" },
-	{ key: "cl_3", label: "1v3", description: "1v3 clutches" },
-	{ key: "cl_4", label: "1v4", description: "1v4 clutches" },
-	{ key: "cl_5", label: "1v5", description: "1v5 clutches" },
-	{ key: "saveRate", label: "Save %", description: "Save rate" },
-	{ key: "savesR", label: "Saves/R", description: "Saves per round" },
-	{ key: "adp", label: "ADP", description: "Average death placement" },
-];
+import { ALL_STATS } from "./types";
 
 export function TableView() {
 	const { data: franchises = [], isLoading } = useFetchFranchisesGraph();
@@ -217,16 +174,7 @@ export function TableView() {
 			/>
 
 			<div className="flex-1 p-6 overflow-auto">
-				{isUsingFallback && (
-					<div className="mb-4 p-3 bg-amber-900/50 border border-amber-600 rounded-lg flex items-center gap-2">
-						<svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-amber-400" viewBox="0 0 20 20" fill="currentColor">
-							<path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
-						</svg>
-						<span className="text-amber-200 text-sm">
-							<strong>Off-season:</strong> Showing Season {effectiveSeason} stats (current season has no stats yet)
-						</span>
-					</div>
-				)}
+				{isUsingFallback && <OffSeasonBanner effectiveSeason={effectiveSeason} />}
 
 				<div className="mb-6">
 					<h1 className="text-2xl font-bold text-white mb-4">Table View - All Players Comparison</h1>

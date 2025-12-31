@@ -67,8 +67,6 @@ function getMatchStatValue(matchStats: MatchStats, statKey: keyof CscStats): num
 		case 'kr':
 			// Kills per round (need totalRounds from match)
 			return undefined; // Would need match.totalRounds
-		case 'kd':
-			return matchStats.deaths > 0 ? matchStats.kills / matchStats.deaths : matchStats.kills;
 		case 'fAssists':
 			return matchStats.FAss;
 		default:

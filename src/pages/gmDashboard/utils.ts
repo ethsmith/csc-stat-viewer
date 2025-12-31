@@ -2,6 +2,7 @@ import { CscStats } from "../../models/csc-stats-types";
 import { CscPlayer } from "../../models/csc-player-types";
 import { PlayerTypes } from "../../common/utils/player-utils";
 import { AVAILABLE_STATS } from "./types";
+import { franchiseImages } from "../../common/images/franchise";
 
 // Colorblind color configuration
 export interface ColorblindColors {
@@ -423,4 +424,9 @@ export const createImportHandler = (
 			event.target.value = '';
 		}
 	};
+};
+
+// Get franchise image URL from prefix
+export const getFranchiseImage = (prefix: string): string => {
+	return franchiseImages[prefix] || "";
 };

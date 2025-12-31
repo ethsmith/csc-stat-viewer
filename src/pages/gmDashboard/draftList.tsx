@@ -1,5 +1,4 @@
 import * as React from "react";
-import { Container } from "../../common/components/container";
 import { Loading } from "../../common/components/loading";
 import { useStatsWithFallback } from "./hooks/useStatsWithFallback";
 import { useCscPlayersCache } from "../../dao/cscPlayerGraphQLDao";
@@ -11,6 +10,19 @@ import { useFetchFranchisesGraph } from "../../dao/franchisesGraphQLDao";
 import { Franchise } from "../../models/franchise-types";
 import { useQuery } from "@tanstack/react-query";
 import { PlayerTypes } from "../../common/utils/player-utils";
+import { PlayerRole } from "./types";
+
+// Scouting note types
+type Playstyle = "Aggressive" | "Passive";
+type CommsRating = "Very Bad" | "Bad" | "Normal" | "Great" | "Excellent";
+
+interface ScoutingNote {
+	playerName: string;
+	playstyle: Playstyle | "";
+	role: PlayerRole | "";
+	commsRating: CommsRating | "";
+	notes: string;
+}
 
 // Google Sheets configuration
 const SPREADSHEET_ID = "1uDm9KChIpiFYjlA9Tr5RERplR5OzyTkn91_5jdjnFWg";
@@ -117,10 +129,6 @@ export function DraftList() {
 	const [myDraftList, setMyDraftList] = useLocalStorage("myDraftListByTier", "{}");
 	const fileInputRef = React.useRef<HTMLInputElement>(null);
 
-	// Drag and drop state for personal draft list - now includes tier
-	const [draggedItem, setDraggedItem] = React.useState<{ tier: string; index: number } | null>(null);
-	const [dragOverItem, setDragOverItem] = React.useState<{ tier: string; index: number } | null>(null);
-
 	// Parse my draft list from localStorage - now keyed by tier
 	const parsedMyDraftList: Record<string, string[]> = React.useMemo(() => {
 		try {
@@ -129,6 +137,21 @@ export function DraftList() {
 			return {};
 		}
 	}, [myDraftList]);
+
+	// Parse scouting notes from localStorage - keyed by tier
+	const parsedScoutingNotes: Record<string, ScoutingNote[]> = React.useMemo(() => {
+		try {
+			return JSON.parse(scoutingNotes);
+		} catch {
+			return {};
+		}
+	}, [scoutingNotes]);
+
+	// Get scouting note for a player in the current tier
+	const getScoutingNote = (playerName: string, tier: string): ScoutingNote | undefined => {
+		const tierNotes = parsedScoutingNotes[tier] || [];
+		return tierNotes.find(note => note.playerName === playerName);
+	};
 
 	// Add player to my draft list for the current tier
 	const addToMyDraftList = (playerName: string, tier: string) => {
@@ -160,77 +183,11 @@ export function DraftList() {
 		return null;
 	};
 
-	// Drag and drop handlers - now tier-aware
-	const handleDragStart = (tier: string, index: number) => {
-		setDraggedItem({ tier, index });
-	};
-
-	const handleDragOver = (e: React.DragEvent, tier: string, index: number) => {
-		e.preventDefault();
-		setDragOverItem({ tier, index });
-	};
-
-	const handleDragEnd = () => {
-		setDraggedItem(null);
-		setDragOverItem(null);
-	};
-
-	const handleDrop = (e: React.DragEvent, dropTier: string, dropIndex: number) => {
-		e.preventDefault();
-		if (!draggedItem || (draggedItem.tier === dropTier && draggedItem.index === dropIndex)) {
-			handleDragEnd();
-			return;
-		}
-
-		// Only allow reordering within the same tier
-		if (draggedItem.tier !== dropTier) {
-			handleDragEnd();
-			return;
-		}
-
-		const tierList = [...(parsedMyDraftList[dropTier] || [])];
-		const [draggedPlayer] = tierList.splice(draggedItem.index, 1);
-		tierList.splice(dropIndex, 0, draggedPlayer);
-		
-		const newList = { ...parsedMyDraftList, [dropTier]: tierList };
-		setMyDraftList(JSON.stringify(newList));
-		handleDragEnd();
-	};
-
-	// Move player up in the list within a tier
-	const movePlayerUp = (tier: string, index: number) => {
-		if (index === 0) return;
-		const tierList = [...(parsedMyDraftList[tier] || [])];
-		[tierList[index - 1], tierList[index]] = [tierList[index], tierList[index - 1]];
-		const newList = { ...parsedMyDraftList, [tier]: tierList };
-		setMyDraftList(JSON.stringify(newList));
-	};
-
-	// Move player down in the list within a tier
-	const movePlayerDown = (tier: string, index: number) => {
-		const tierList = parsedMyDraftList[tier] || [];
-		if (index === tierList.length - 1) return;
-		const newTierList = [...tierList];
-		[newTierList[index], newTierList[index + 1]] = [newTierList[index + 1], newTierList[index]];
-		const newList = { ...parsedMyDraftList, [tier]: newTierList };
-		setMyDraftList(JSON.stringify(newList));
-	};
-
 	// Clear all players from a specific tier
 	const clearTierDraftList = (tier: string) => {
 		const newList = { ...parsedMyDraftList, [tier]: [] };
 		setMyDraftList(JSON.stringify(newList));
 	};
-
-	// Clear all draft lists
-	const clearAllDraftLists = () => {
-		setMyDraftList("{}");
-	};
-
-	// Get total count of players across all tiers
-	const totalDraftListCount = React.useMemo(() => {
-		return Object.values(parsedMyDraftList).reduce((sum, tierList) => sum + tierList.length, 0);
-	}, [parsedMyDraftList]);
 
 	const { 
 		statsCache, 
@@ -389,15 +346,15 @@ export function DraftList() {
 	const handleExport = () => {
 		handleExportSettings(
 			selectedFranchise,
-			colorblindMode,
-			colorblindColors,
 			playerTargets,
 			playerRoles,
 			selectedStats,
 			sectionOrder,
 			hiddenSections,
 			collapsedSections,
-			scoutingNotes
+			scoutingNotes,
+			colorblindMode,
+			colorblindColors
 		);
 	};
 
@@ -670,58 +627,101 @@ export function DraftList() {
 										const playerStats = tierPlayers.find(p => p.name === playerName);
 										const isDrafted = draftStatusMap[playerName.toLowerCase()];
 										const statusKnown = isDrafted !== undefined;
+										const scoutingNote = getScoutingNote(playerName, selectedTier);
+										const hasScoutingData = scoutingNote && (scoutingNote.playstyle || scoutingNote.role || scoutingNote.commsRating || scoutingNote.notes);
 										
 										return (
 											<div
 												key={playerName}
-												className={`flex items-center gap-3 px-4 py-3 hover:bg-gray-750 transition-all ${
+												className={`px-4 py-3 hover:bg-gray-750 transition-all ${
 													isDrafted ? "bg-red-900/20" : ""
 												}`}
 											>
-												{/* Rank/Order */}
-												<div className="flex items-center justify-center">
-													<span className="text-lg font-bold text-gray-500 w-6 text-center">{index + 1}</span>
-												</div>
-
-												{/* Player Info */}
-												<div className="flex-1 min-w-0">
-													<div className={`font-medium ${isDrafted ? "text-gray-500 line-through" : "text-white"}`}>
-														{playerName}
+												<div className="flex items-center gap-3">
+													{/* Rank/Order */}
+													<div className="flex items-center justify-center">
+														<span className="text-lg font-bold text-gray-500 w-6 text-center">{index + 1}</span>
 													</div>
-													{playerStats && (
-														<div className="text-xs text-gray-500">
-															Rating: {playerStats.rating?.toFixed(2)} | ADR: {playerStats.adr?.toFixed(1)}
+
+													{/* Player Info */}
+													<div className="flex-1 min-w-0">
+														<div className={`font-medium ${isDrafted ? "text-gray-500 line-through" : "text-white"}`}>
+															{playerName}
+															{hasScoutingData && (
+																<span className="ml-2 text-xs text-cyan-400" title="Has scouting notes">📋</span>
+															)}
 														</div>
-													)}
+														{playerStats && (
+															<div className="text-xs text-gray-500">
+																Rating: {playerStats.rating?.toFixed(2)} | ADR: {playerStats.adr?.toFixed(1)}
+															</div>
+														)}
+													</div>
+
+													{/* Status */}
+													<div>
+														{!statusKnown ? (
+															<span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-yellow-900 text-yellow-300">
+																Unknown
+															</span>
+														) : isDrafted ? (
+															<span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-red-900 text-red-300">
+																Drafted
+															</span>
+														) : (
+															<span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-900 text-green-300">
+																Available
+															</span>
+														)}
+													</div>
+
+													{/* Remove Button */}
+													<button
+														onClick={() => removeFromMyDraftList(playerName, selectedTier)}
+														className="p-1 text-gray-500 hover:text-red-400 transition-colors"
+														title="Remove from list"
+													>
+														<svg className="h-5 w-5" fill="currentColor" viewBox="0 0 20 20">
+															<path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
+														</svg>
+													</button>
 												</div>
 
-												{/* Status */}
-												<div>
-													{!statusKnown ? (
-														<span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-yellow-900 text-yellow-300">
-															Unknown
-														</span>
-													) : isDrafted ? (
-														<span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-red-900 text-red-300">
-															Drafted
-														</span>
-													) : (
-														<span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-900 text-green-300">
-															Available
-														</span>
-													)}
-												</div>
-
-												{/* Remove Button */}
-												<button
-													onClick={() => removeFromMyDraftList(playerName, selectedTier)}
-													className="p-1 text-gray-500 hover:text-red-400 transition-colors"
-													title="Remove from list"
-												>
-													<svg className="h-5 w-5" fill="currentColor" viewBox="0 0 20 20">
-														<path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
-													</svg>
-												</button>
+												{/* Scouting Notes Section */}
+												{hasScoutingData && (
+													<div className="mt-2 ml-9 p-2 bg-gray-900/50 rounded-lg border border-gray-700">
+														<div className="flex flex-wrap gap-2 mb-1">
+															{scoutingNote.role && (
+																<span className="px-2 py-0.5 text-xs rounded bg-cyan-900/50 text-cyan-300 border border-cyan-700">
+																	{scoutingNote.role}
+																</span>
+															)}
+															{scoutingNote.playstyle && (
+																<span className={`px-2 py-0.5 text-xs rounded border ${
+																	scoutingNote.playstyle === "Aggressive" 
+																		? "bg-red-900/50 text-red-300 border-red-700" 
+																		: "bg-blue-900/50 text-blue-300 border-blue-700"
+																}`}>
+																	{scoutingNote.playstyle}
+																</span>
+															)}
+															{scoutingNote.commsRating && (
+																<span className={`px-2 py-0.5 text-xs rounded border ${
+																	scoutingNote.commsRating === "Excellent" || scoutingNote.commsRating === "Great"
+																		? "bg-green-900/50 text-green-300 border-green-700"
+																		: scoutingNote.commsRating === "Normal"
+																			? "bg-gray-700/50 text-gray-300 border-gray-600"
+																			: "bg-orange-900/50 text-orange-300 border-orange-700"
+																}`}>
+																	Comms: {scoutingNote.commsRating}
+																</span>
+															)}
+														</div>
+														{scoutingNote.notes && (
+															<p className="text-xs text-gray-400 italic">"{scoutingNote.notes}"</p>
+														)}
+													</div>
+												)}
 											</div>
 										);
 									})}
