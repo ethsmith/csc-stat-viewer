@@ -11,7 +11,7 @@ import { franchiseImages } from "../../common/images/franchise";
 import { CscStats } from "../../models/csc-stats-types";
 import { GMSidebar } from "./components/GMSidebar";
 import { PLAYER_ROLES, PlayerRole } from "./types";
-import { handleExportSettings, createImportHandler, parseColorblindColors } from "./utils";
+import { handleExportSettings, createImportHandler, parseColorblindColors, getPlayerTeamDisplay } from "./utils";
 
 const getFranchiseImage = (prefix: string): string => {
 	return franchiseImages[prefix] || "";
@@ -345,7 +345,7 @@ export function ScoutingNotes() {
 														<span>MMR: {playerMmr || "N/A"}</span>
 														<span>Rating: {playerStats?.rating?.toFixed(2) || "N/A"}</span>
 														<span>ADR: {playerStats?.adr?.toFixed(1) || "N/A"}</span>
-														<span>Team: {playerStats?.team || "FA"}</span>
+														<span>Team: {getPlayerTeamDisplay(note.playerName, playerStats?.team, allPlayers)}</span>
 													</div>
 												</div>
 												<button
@@ -469,7 +469,7 @@ export function ScoutingNotes() {
 										>
 											<div>
 												<span className="text-white font-medium">{player.name}</span>
-												<span className="text-gray-500 text-sm ml-2">({player.team || "FA"})</span>
+												<span className="text-gray-500 text-sm ml-2">({getPlayerTeamDisplay(player.name, player.team, allPlayers)})</span>
 											</div>
 											<div className="text-sm text-gray-400">
 												<span className="mr-3">MMR: {playerMmrMap[player.name] || "N/A"}</span>

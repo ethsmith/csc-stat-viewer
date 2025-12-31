@@ -26,7 +26,8 @@ import {
 	handleExportSettings,
 	createImportHandler,
 	parseColorblindColors,
-	ColorblindColors
+	ColorblindColors,
+	getPlayerTeamDisplay
 } from "./utils";
 import { generateInsights } from "./insightsEngine";
 
@@ -824,7 +825,7 @@ export function Dashboard() {
 																											{compStats.name}
 																										</span>
 																									</Link>
-																									<span className="text-xs text-gray-500">({compStats.team || "FA"})</span>
+																									<span className="text-xs text-gray-500">({getPlayerTeamDisplay(compStats.name, compStats.team, allPlayers)})</span>
 																									<button
 																										onClick={() => handleClearComparison(player.name, compStats.name)}
 																										className="ml-2 text-gray-500 hover:text-red-400 transition-colors"
@@ -990,6 +991,7 @@ export function Dashboard() {
 					teamMmrCap={selectedTeam.tier.mmrCap}
 					teamCurrentMmr={selectedTeam.players?.reduce((acc, p) => acc + (p.mmr || 0), 0) || 0}
 					selectedSigningsMmrDelta={selectedSigningsMmrDelta}
+					playersData={allPlayers}
 				/>
 			)}
 		</div>

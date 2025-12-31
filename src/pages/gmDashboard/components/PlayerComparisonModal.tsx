@@ -1,6 +1,7 @@
 import * as React from "react";
 import { CscStats } from "../../../models/csc-stats-types";
-import { getPositiveColor, getNegativeColor } from "../utils";
+import { CscPlayer } from "../../../models/csc-player-types";
+import { getPositiveColor, getNegativeColor, getPlayerTeamDisplay } from "../utils";
 
 export interface ComparisonPlayerData {
 	stats: CscStats;
@@ -22,6 +23,7 @@ interface PlayerComparisonModalProps {
 	teamMmrCap: number;
 	teamCurrentMmr: number;
 	selectedSigningsMmrDelta: number;
+	playersData?: CscPlayer[];
 }
 
 export function PlayerComparisonModal({
@@ -38,7 +40,8 @@ export function PlayerComparisonModal({
 	playerMmrMap,
 	teamMmrCap,
 	teamCurrentMmr,
-	selectedSigningsMmrDelta
+	selectedSigningsMmrDelta,
+	playersData
 }: PlayerComparisonModalProps) {
 	const [searchQuery, setSearchQuery] = React.useState("");
 
@@ -130,7 +133,7 @@ export function PlayerComparisonModal({
 												{isAlreadySelected && <span className="ml-2 text-xs text-yellow-400">(selected elsewhere)</span>}
 											</td>
 											<td className="px-4 py-3 text-sm text-gray-400">
-												{player.team || "FA"}
+												{getPlayerTeamDisplay(player.name, player.team, playersData)}
 											</td>
 											<td className="px-4 py-3 text-sm text-gray-300">
 												{playerMmr || "N/A"}

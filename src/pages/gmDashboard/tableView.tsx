@@ -8,7 +8,8 @@ import { useStatsWithFallback } from "./hooks/useStatsWithFallback";
 import { Link } from "wouter";
 import { CscStats } from "../../models/csc-stats-types";
 import { GMSidebar } from "./components/GMSidebar";
-import { handleExportSettings, createImportHandler, parseColorblindColors, ColorblindColors } from "./utils";
+import { handleExportSettings, createImportHandler, parseColorblindColors, ColorblindColors, getPlayerTeamDisplay } from "./utils";
+import { useCscPlayersCache } from "../../dao/cscPlayerGraphQLDao";
 
 const ALL_STATS: { key: keyof CscStats; label: string; description: string }[] = [
 	{ key: "rating", label: "Rating", description: "Overall player rating" },
@@ -80,6 +81,8 @@ export function TableView() {
 		isUsingFallback,
 		effectiveSeason 
 	} = useStatsWithFallback();
+
+	const { data: playersData } = useCscPlayersCache(effectiveSeason);
 
 	const currentFranchise = franchises.find((f: Franchise) => f.prefix === selectedFranchise);
 
@@ -425,7 +428,7 @@ export function TableView() {
 														</Link>
 													</td>
 													<td className="px-3 py-2 whitespace-nowrap text-gray-400">
-														{player.team || "-"}
+														{getPlayerTeamDisplay(player.name, player.team, playersData)}
 													</td>
 													{ALL_STATS.map(stat => {
 														const value = player[stat.key] as number | undefined;

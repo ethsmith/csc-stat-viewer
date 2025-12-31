@@ -1,4 +1,6 @@
 import { CscStats } from "../../models/csc-stats-types";
+import { CscPlayer } from "../../models/csc-player-types";
+import { PlayerTypes } from "../../common/utils/player-utils";
 import { AVAILABLE_STATS } from "./types";
 
 // Colorblind color configuration
@@ -59,6 +61,57 @@ export const getCustomBgColorStyle = (
 	if (!colorblindMode) return {};
 	const colors = customColors || DEFAULT_COLORBLIND_COLORS;
 	return { backgroundColor: colors[colorType] };
+};
+
+// Helper to get the correct team display for a player
+// Uses player type from CscPlayer data to show status (FA, PFA, DE, etc.) instead of stale team names
+export const getPlayerTeamDisplay = (
+	playerName: string,
+	statsTeam: string | undefined,
+	playersData: CscPlayer[] | undefined
+): string => {
+	if (!playersData) {
+		return statsTeam || "FA";
+	}
+	
+	const player = playersData.find(p => p.name === playerName);
+	if (!player) {
+		return statsTeam || "FA";
+	}
+	
+	// If player is signed to a team, show the team
+	if (player.type === PlayerTypes.SIGNED || 
+		player.type === PlayerTypes.SIGNED_PROMOTED ||
+		player.type === PlayerTypes.SIGNED_SUBBED ||
+		player.type === PlayerTypes.INACTIVE_RESERVE) {
+		return player.team?.franchise?.prefix || player.team?.name || statsTeam || "FA";
+	}
+	
+	// For unsigned players, show their status
+	switch (player.type) {
+		case PlayerTypes.FREE_AGENT:
+			return "FA";
+		case PlayerTypes.PERMANENT_FREE_AGENT:
+			return "PFA";
+		case PlayerTypes.DRAFT_ELIGIBLE:
+			return "DE";
+		case PlayerTypes.TEMPSIGNED:
+			return "FA Sub";
+		case PlayerTypes.PERMFA_TEMP_SIGNED:
+			return "PFA Sub";
+		case PlayerTypes.UNROSTERED_GM:
+			return "GM";
+		case PlayerTypes.UNROSTERED_AGM:
+			return "AGM";
+		case PlayerTypes.INACTIVE:
+			return "Inactive";
+		case PlayerTypes.EXPIRED:
+			return "Expired";
+		case PlayerTypes.SPECTATOR:
+			return "Spectator";
+		default:
+			return statsTeam || "FA";
+	}
 };
 
 export const getTierAverage = (
