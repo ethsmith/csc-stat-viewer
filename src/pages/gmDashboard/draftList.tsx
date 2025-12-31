@@ -319,9 +319,25 @@ export function DraftList() {
 			players = players.filter(p => draftStatusMap[p.name.toLowerCase()]);
 		}
 
-		// Sort by rating descending
-		return [...players].sort((a, b) => (b.rating || 0) - (a.rating || 0));
-	}, [tierPlayers, searchQuery, showDraftedOnly, draftStatusMap]);
+		// Sort by availability first (Available, Unknown, Drafted), then by rating descending
+		return [...players].sort((a, b) => {
+			const aStatus = draftStatusMap[a.name.toLowerCase()];
+			const bStatus = draftStatusMap[b.name.toLowerCase()];
+			
+			// Get sort priority: Available (false) = 0, Unknown (undefined) = 1, Drafted (true) = 2
+			const getPriority = (status: boolean | undefined) => {
+				if (status === false) return 0; // Available
+				if (status === undefined) return 1; // Unknown
+				return 2; // Drafted
+			};
+			
+			const priorityDiff = getPriority(aStatus) - getPriority(bStatus);
+			if (priorityDiff !== 0) return priorityDiff;
+			
+			// Within same availability status, sort by rating descending
+			return (b.rating || 0) - (a.rating || 0);
+		});
+	}, [tierPlayers, searchQuery, showDraftedOnly, draftStatusMap, playerTypeMap]);
 
 	// Count available and drafted players
 	const playerCounts = React.useMemo(() => {
@@ -342,6 +358,25 @@ export function DraftList() {
 
 		return { available, drafted, unknown, total: tierPlayers.length };
 	}, [tierPlayers, draftStatusMap]);
+
+	// Sort draft list by availability: Available first, Unknown second, Drafted last
+	const sortedDraftList = React.useMemo(() => {
+		const tierList = parsedMyDraftList[selectedTier] || [];
+		
+		return [...tierList].sort((a, b) => {
+			const aStatus = draftStatusMap[a.toLowerCase()];
+			const bStatus = draftStatusMap[b.toLowerCase()];
+			
+			// Get sort priority: Available (false) = 0, Unknown (undefined) = 1, Drafted (true) = 2
+			const getPriority = (status: boolean | undefined) => {
+				if (status === false) return 0; // Available
+				if (status === undefined) return 1; // Unknown
+				return 2; // Drafted
+			};
+			
+			return getPriority(aStatus) - getPriority(bStatus);
+		});
+	}, [parsedMyDraftList, selectedTier, draftStatusMap]);
 
 	const isLoading = isLoadingFranchises || isLoadingStats;
 
@@ -624,14 +659,14 @@ export function DraftList() {
 							)}
 						</div>
 						<div className="overflow-y-auto max-h-[600px]">
-							{(parsedMyDraftList[selectedTier] || []).length === 0 ? (
+							{sortedDraftList.length === 0 ? (
 								<div className="px-4 py-8 text-center text-gray-400">
 									<p>No players in your {selectedTier} draft list</p>
 									<p className="text-sm mt-2">Add players from the tier list on the left</p>
 								</div>
 							) : (
 								<div className="divide-y divide-gray-700">
-									{(parsedMyDraftList[selectedTier] || []).map((playerName, index) => {
+									{sortedDraftList.map((playerName, index) => {
 										const playerStats = tierPlayers.find(p => p.name === playerName);
 										const isDrafted = draftStatusMap[playerName.toLowerCase()];
 										const statusKnown = isDrafted !== undefined;
@@ -639,38 +674,13 @@ export function DraftList() {
 										return (
 											<div
 												key={playerName}
-												draggable
-												onDragStart={() => handleDragStart(selectedTier, index)}
-												onDragOver={(e) => handleDragOver(e, selectedTier, index)}
-												onDragEnd={handleDragEnd}
-												onDrop={(e) => handleDrop(e, selectedTier, index)}
-												className={`flex items-center gap-3 px-4 py-3 hover:bg-gray-750 transition-all cursor-grab active:cursor-grabbing ${
-													draggedItem?.tier === selectedTier && draggedItem?.index === index ? "opacity-50" : ""
-												} ${dragOverItem?.tier === selectedTier && dragOverItem?.index === index ? "ring-2 ring-blue-500 ring-inset" : ""} ${
+												className={`flex items-center gap-3 px-4 py-3 hover:bg-gray-750 transition-all ${
 													isDrafted ? "bg-red-900/20" : ""
 												}`}
 											>
 												{/* Rank/Order */}
-												<div className="flex flex-col items-center gap-1">
-													<button
-														onClick={() => movePlayerUp(selectedTier, index)}
-														disabled={index === 0}
-														className="p-0.5 text-gray-500 hover:text-white disabled:opacity-30 disabled:cursor-not-allowed"
-													>
-														<svg className="h-4 w-4" fill="currentColor" viewBox="0 0 20 20">
-															<path fillRule="evenodd" d="M14.707 12.707a1 1 0 01-1.414 0L10 9.414l-3.293 3.293a1 1 0 01-1.414-1.414l4-4a1 1 0 011.414 0l4 4a1 1 0 010 1.414z" clipRule="evenodd" />
-														</svg>
-													</button>
+												<div className="flex items-center justify-center">
 													<span className="text-lg font-bold text-gray-500 w-6 text-center">{index + 1}</span>
-													<button
-														onClick={() => movePlayerDown(selectedTier, index)}
-														disabled={index === (parsedMyDraftList[selectedTier] || []).length - 1}
-														className="p-0.5 text-gray-500 hover:text-white disabled:opacity-30 disabled:cursor-not-allowed"
-													>
-														<svg className="h-4 w-4" fill="currentColor" viewBox="0 0 20 20">
-															<path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
-														</svg>
-													</button>
 												</div>
 
 												{/* Player Info */}
