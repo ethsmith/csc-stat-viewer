@@ -189,6 +189,30 @@ export function DraftList() {
 		setMyDraftList(JSON.stringify(newList));
 	};
 
+	// Move player up in the draft list (within their availability group)
+	const movePlayerUp = (playerName: string, tier: string) => {
+		const tierList = parsedMyDraftList[tier] || [];
+		const index = tierList.indexOf(playerName);
+		if (index > 0) {
+			const newTierList = [...tierList];
+			[newTierList[index - 1], newTierList[index]] = [newTierList[index], newTierList[index - 1]];
+			const newList = { ...parsedMyDraftList, [tier]: newTierList };
+			setMyDraftList(JSON.stringify(newList));
+		}
+	};
+
+	// Move player down in the draft list (within their availability group)
+	const movePlayerDown = (playerName: string, tier: string) => {
+		const tierList = parsedMyDraftList[tier] || [];
+		const index = tierList.indexOf(playerName);
+		if (index < tierList.length - 1) {
+			const newTierList = [...tierList];
+			[newTierList[index], newTierList[index + 1]] = [newTierList[index + 1], newTierList[index]];
+			const newList = { ...parsedMyDraftList, [tier]: newTierList };
+			setMyDraftList(JSON.stringify(newList));
+		}
+	};
+
 	const { 
 		statsCache, 
 		isLoading: isLoadingStats,
@@ -317,23 +341,48 @@ export function DraftList() {
 	}, [tierPlayers, draftStatusMap]);
 
 	// Sort draft list by availability: Available first, Unknown second, Drafted last
+	// Preserve user's manual ordering within each availability group
 	const sortedDraftList = React.useMemo(() => {
 		const tierList = parsedMyDraftList[selectedTier] || [];
 		
-		return [...tierList].sort((a, b) => {
-			const aStatus = draftStatusMap[a.toLowerCase()];
-			const bStatus = draftStatusMap[b.toLowerCase()];
-			
-			// Get sort priority: Available (false) = 0, Unknown (undefined) = 1, Drafted (true) = 2
-			const getPriority = (status: boolean | undefined) => {
-				if (status === false) return 0; // Available
-				if (status === undefined) return 1; // Unknown
-				return 2; // Drafted
-			};
-			
-			return getPriority(aStatus) - getPriority(bStatus);
+		// Group players by availability status while preserving order within each group
+		const available: string[] = [];
+		const unknown: string[] = [];
+		const drafted: string[] = [];
+		
+		tierList.forEach(playerName => {
+			const status = draftStatusMap[playerName.toLowerCase()];
+			if (status === false) {
+				available.push(playerName);
+			} else if (status === undefined) {
+				unknown.push(playerName);
+			} else {
+				drafted.push(playerName);
+			}
 		});
+		
+		return [...available, ...unknown, ...drafted];
 	}, [parsedMyDraftList, selectedTier, draftStatusMap]);
+
+	// Helper to check if player can move up within their availability group
+	const canMoveUp = (playerName: string, index: number): boolean => {
+		if (index === 0) return false;
+		const prevPlayer = sortedDraftList[index - 1];
+		const currentStatus = draftStatusMap[playerName.toLowerCase()];
+		const prevStatus = draftStatusMap[prevPlayer.toLowerCase()];
+		// Can only move up if previous player has same availability status
+		return currentStatus === prevStatus;
+	};
+
+	// Helper to check if player can move down within their availability group
+	const canMoveDown = (playerName: string, index: number): boolean => {
+		if (index === sortedDraftList.length - 1) return false;
+		const nextPlayer = sortedDraftList[index + 1];
+		const currentStatus = draftStatusMap[playerName.toLowerCase()];
+		const nextStatus = draftStatusMap[nextPlayer.toLowerCase()];
+		// Can only move down if next player has same availability status
+		return currentStatus === nextStatus;
+	};
 
 	const isLoading = isLoadingFranchises || isLoadingStats;
 
@@ -673,6 +722,30 @@ export function DraftList() {
 																Available
 															</span>
 														)}
+													</div>
+
+													{/* Move Up/Down Buttons */}
+													<div className="flex flex-col gap-0.5">
+														<button
+															onClick={() => movePlayerUp(playerName, selectedTier)}
+															disabled={!canMoveUp(playerName, index)}
+															className={`p-0.5 rounded transition-colors ${canMoveUp(playerName, index) ? 'text-gray-400 hover:text-white hover:bg-gray-700' : 'text-gray-700 cursor-not-allowed'}`}
+															title="Move up"
+														>
+															<svg className="h-4 w-4" fill="currentColor" viewBox="0 0 20 20">
+																<path fillRule="evenodd" d="M14.707 12.707a1 1 0 01-1.414 0L10 9.414l-3.293 3.293a1 1 0 01-1.414-1.414l4-4a1 1 0 011.414 0l4 4a1 1 0 010 1.414z" clipRule="evenodd" />
+															</svg>
+														</button>
+														<button
+															onClick={() => movePlayerDown(playerName, selectedTier)}
+															disabled={!canMoveDown(playerName, index)}
+															className={`p-0.5 rounded transition-colors ${canMoveDown(playerName, index) ? 'text-gray-400 hover:text-white hover:bg-gray-700' : 'text-gray-700 cursor-not-allowed'}`}
+															title="Move down"
+														>
+															<svg className="h-4 w-4" fill="currentColor" viewBox="0 0 20 20">
+																<path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
+															</svg>
+														</button>
 													</div>
 
 													{/* Remove Button */}
