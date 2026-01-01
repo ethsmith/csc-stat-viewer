@@ -26,7 +26,7 @@ interface ScoutingNote {
 
 // Google Sheets configuration
 // https://docs.google.com/spreadsheets/d/1TL1RuDsp1Pnw971Fg4u7UOqOpMo-1e0o_S8Sg3zqHsE/edit?usp=sharing
-const SPREADSHEET_ID = "1TL1RuDsp1Pnw971Fg4u7UOqOpMo-1e0o_S8Sg3zqHsE";
+const SPREADSHEET_ID = "1A9rmYWDTFENaTAcfY-3SdU41w9Q1uLBGXFK4G1idV3w";
 const SHEET_NAME = "Sheet1";
 
 interface DraftedPlayer {
