@@ -10,7 +10,7 @@ import { useFetchFranchisesGraph } from "../../dao/franchisesGraphQLDao";
 import { Franchise } from "../../models/franchise-types";
 import { useQuery } from "@tanstack/react-query";
 import { PlayerTypes } from "../../common/utils/player-utils";
-import { PlayerRole } from "./types";
+import { PlayerRole, AVAILABLE_STATS } from "./types";
 
 // Scouting note types
 type Playstyle = "Aggressive" | "Passive";
@@ -128,7 +128,23 @@ export function DraftList() {
 	const [collapsedSections] = useLocalStorage("dashboardCollapsedSections", "[]");
 	const [scoutingNotes] = useLocalStorage("scoutingNotes", "{}");
 	const [myDraftList, setMyDraftList] = useLocalStorage("myDraftListByTier", "{}");
+	const [statsPopupPlayer, setStatsPopupPlayer] = React.useState<string | null>(null);
 	const fileInputRef = React.useRef<HTMLInputElement>(null);
+
+	// Parse selected stats from localStorage
+	const parsedSelectedStats: string[] = React.useMemo(() => {
+		try {
+			const parsed = JSON.parse(selectedStats);
+			return Array.isArray(parsed) && parsed.length > 0 ? parsed : ["rating"];
+		} catch {
+			return ["rating"];
+		}
+	}, [selectedStats]);
+
+	// Get tracked stats definitions
+	const trackedStats = React.useMemo(() => {
+		return AVAILABLE_STATS.filter(stat => parsedSelectedStats.includes(stat.key));
+	}, [parsedSelectedStats]);
 
 	// Parse my draft list from localStorage - now keyed by tier
 	const parsedMyDraftList: Record<string, string[]> = React.useMemo(() => {
@@ -569,13 +585,14 @@ export function DraftList() {
 										<th className="px-3 py-2 text-left text-xs font-semibold text-gray-300">Status</th>
 										<th className="px-3 py-2 text-left text-xs font-semibold text-gray-300">Player</th>
 										<th className="px-3 py-2 text-center text-xs font-semibold text-gray-300">Rating</th>
+										<th className="px-3 py-2 text-center text-xs font-semibold text-gray-300">Stats</th>
 										<th className="px-3 py-2 text-center text-xs font-semibold text-gray-300">Action</th>
 									</tr>
 								</thead>
 								<tbody className="divide-y divide-gray-700">
 									{filteredPlayers.length === 0 ? (
 										<tr>
-											<td colSpan={4} className="px-4 py-8 text-center text-gray-400">
+											<td colSpan={5} className="px-4 py-8 text-center text-gray-400">
 												No players found
 											</td>
 										</tr>
@@ -587,8 +604,8 @@ export function DraftList() {
 											const playerDraftTier = getPlayerDraftListTier(player.name);
 											
 											return (
+												<React.Fragment key={player.name}>
 												<tr 
-													key={player.name} 
 													className={`hover:bg-gray-750 transition-colors ${
 														isDrafted ? "opacity-50" : ""
 													}`}
@@ -620,6 +637,15 @@ export function DraftList() {
 														{player.rating?.toFixed(2) || "-"}
 													</td>
 													<td className="px-3 py-2 text-center">
+														<button
+															onClick={() => setStatsPopupPlayer(statsPopupPlayer === player.name ? null : player.name)}
+															className={`px-2 py-1 text-xs rounded transition-colors ${statsPopupPlayer === player.name ? 'bg-cyan-600 text-white' : 'bg-gray-600 hover:bg-gray-500 text-gray-200'}`}
+															title="View tracked stats"
+														>
+															📊
+														</button>
+													</td>
+													<td className="px-3 py-2 text-center">
 														{isInMyList ? (
 															<button
 																onClick={() => removeFromMyDraftList(player.name, playerDraftTier!)}
@@ -639,6 +665,34 @@ export function DraftList() {
 														)}
 													</td>
 												</tr>
+												{/* Inline Stats Row */}
+												{statsPopupPlayer === player.name && (
+													<tr className="bg-gray-750/50">
+														<td colSpan={5} className="px-3 py-2">
+															<div className="flex flex-wrap gap-3 text-xs">
+																{trackedStats.length === 0 ? (
+																	<span className="text-gray-500">No stats being tracked. Configure in Set Targets.</span>
+																) : (
+																	trackedStats.map(stat => {
+																		const value = player[stat.key] as number | undefined;
+																		return (
+																			<div key={stat.key} className="flex items-center gap-1">
+																				<span className="text-gray-400">{stat.label}:</span>
+																				<span className="text-white font-medium">
+																					{value !== undefined 
+																						? (typeof value === "number" && !Number.isInteger(value) ? value.toFixed(2) : value)
+																						: "-"
+																					}
+																				</span>
+																			</div>
+																		);
+																	})
+																)}
+															</div>
+														</td>
+													</tr>
+												)}
+											</React.Fragment>
 											);
 										})
 									)}
@@ -725,6 +779,15 @@ export function DraftList() {
 														)}
 													</div>
 
+													{/* Stats Button */}
+													<button
+														onClick={() => setStatsPopupPlayer(statsPopupPlayer === playerName ? null : playerName)}
+														className={`px-2 py-1 text-xs rounded transition-colors ${statsPopupPlayer === playerName ? 'bg-cyan-600 text-white' : 'bg-gray-600 hover:bg-gray-500 text-gray-200'}`}
+														title="View tracked stats"
+													>
+														📊
+													</button>
+
 													{/* Move Up/Down Buttons */}
 													<div className="flex flex-col gap-0.5">
 														<button
@@ -760,6 +823,32 @@ export function DraftList() {
 														</svg>
 													</button>
 												</div>
+
+												{/* Inline Stats Section */}
+												{statsPopupPlayer === playerName && (
+													<div className="mt-2 ml-9 p-2 bg-cyan-900/20 rounded-lg border border-cyan-700">
+														<div className="flex flex-wrap gap-3 text-xs">
+															{trackedStats.length === 0 ? (
+																<span className="text-gray-500">No stats being tracked. Configure in Set Targets.</span>
+															) : (
+																trackedStats.map(stat => {
+																	const value = playerStats?.[stat.key] as number | undefined;
+																	return (
+																		<div key={stat.key} className="flex items-center gap-1">
+																			<span className="text-gray-400">{stat.label}:</span>
+																			<span className="text-white font-medium">
+																				{value !== undefined 
+																					? (typeof value === "number" && !Number.isInteger(value) ? value.toFixed(2) : value)
+																					: "-"
+																				}
+																			</span>
+																		</div>
+																	);
+																})
+															)}
+														</div>
+													</div>
+												)}
 
 												{/* Scouting Notes Section */}
 												{hasScoutingData && (
@@ -805,6 +894,7 @@ export function DraftList() {
 					</div>
 				</div>
 			</div>
+
 		</div>
 	);
 }
