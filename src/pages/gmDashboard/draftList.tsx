@@ -232,7 +232,7 @@ export function DraftList() {
 	} = useQuery({
 		queryKey: ["draftStatus"],
 		queryFn: fetchDraftStatus,
-		refetchInterval: autoRefresh ? 10000 : false, // Refresh every 10 seconds if auto-refresh is on
+		refetchInterval: autoRefresh ? 2000 : false, // Refresh every 3 seconds if auto-refresh is on
 		staleTime: 5000,
 	});
 
