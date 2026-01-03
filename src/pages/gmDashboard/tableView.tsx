@@ -26,6 +26,7 @@ export function TableView() {
 	const [teamFilter, setTeamFilter] = React.useState<string>("");
 	const [minGames, setMinGames] = React.useState<number>(0);
 	const [showFilters, setShowFilters] = React.useState(false);
+	const [statFilters, setStatFilters] = React.useState<Array<{ stat: keyof CscStats; operator: "<" | ">" | "<=" | ">=" | "="; value: number }>>([]);
 	const [colorblindMode, setColorblindMode] = useLocalStorage("colorblindMode", "false");
 	const [colorblindColors, setColorblindColors] = useLocalStorage("colorblindColors", JSON.stringify({ good: "#22d3ee", warning: "#fb923c", bad: "#c084fc" }));
 	const [playerTargets, setPlayerTargets] = useLocalStorage("playerTargets", "{}");
@@ -104,8 +105,24 @@ export function TableView() {
 			players = players.filter(p => (p.gameCount || 0) >= minGames);
 		}
 		
+		// Apply stat filters
+		statFilters.forEach(filter => {
+			players = players.filter(p => {
+				const val = p[filter.stat] as number | undefined;
+				if (val === undefined) return false;
+				switch (filter.operator) {
+					case "<": return val < filter.value;
+					case ">": return val > filter.value;
+					case "<=": return val <= filter.value;
+					case ">=": return val >= filter.value;
+					case "=": return val === filter.value;
+					default: return true;
+				}
+			});
+		});
+		
 		return players;
-	}, [tierPlayers, selectedPlayers, teamFilter, minGames]);
+	}, [tierPlayers, selectedPlayers, teamFilter, minGames, statFilters]);
 
 	const sortedPlayers = React.useMemo(() => {
 		return [...filteredPlayers].sort((a, b) => {
@@ -413,16 +430,85 @@ export function TableView() {
 									</div>
 								</div>
 
-								{(teamFilter || minGames > 0) && (
+								{(teamFilter || minGames > 0 || statFilters.length > 0) && (
 									<button
 										onClick={() => {
 											setTeamFilter("");
 											setMinGames(0);
+											setStatFilters([]);
 										}}
 										className="px-4 py-2 bg-red-600 hover:bg-red-500 text-white rounded-lg transition-colors"
 									>
-										Clear Filters
+										Clear All Filters
 									</button>
+								)}
+							</div>
+
+							{/* Stat Filters Section */}
+							<div className="mt-4 pt-4 border-t border-gray-600">
+								<div className="flex items-center justify-between mb-3">
+									<h4 className="text-sm font-medium text-white">Stat Filters</h4>
+									<button
+										onClick={() => setStatFilters([...statFilters, { stat: "rating", operator: ">=", value: 0 }])}
+										className="px-3 py-1 bg-blue-600 hover:bg-blue-500 text-white text-sm rounded-lg transition-colors"
+									>
+										+ Add Filter
+									</button>
+								</div>
+								{statFilters.length === 0 ? (
+									<p className="text-gray-500 text-sm">No stat filters applied. Click "Add Filter" to filter by stat values.</p>
+								) : (
+									<div className="space-y-2">
+										{statFilters.map((filter, index) => (
+											<div key={index} className="flex items-center gap-2 flex-wrap">
+												<select
+													value={filter.stat}
+													onChange={(e) => {
+														const newFilters = [...statFilters];
+														newFilters[index] = { ...filter, stat: e.target.value as keyof CscStats };
+														setStatFilters(newFilters);
+													}}
+													className="px-3 py-1.5 bg-gray-700 border border-gray-600 rounded-lg text-white text-sm focus:outline-none focus:border-blue-500"
+												>
+													{ALL_STATS.map(stat => (
+														<option key={stat.key} value={stat.key}>{stat.label}</option>
+													))}
+												</select>
+												<select
+													value={filter.operator}
+													onChange={(e) => {
+														const newFilters = [...statFilters];
+														newFilters[index] = { ...filter, operator: e.target.value as "<" | ">" | "<=" | ">=" | "=" };
+														setStatFilters(newFilters);
+													}}
+													className="px-3 py-1.5 bg-gray-700 border border-gray-600 rounded-lg text-white text-sm focus:outline-none focus:border-blue-500 w-20"
+												>
+													<option value=">">&gt;</option>
+													<option value=">=">&gt;=</option>
+													<option value="<">&lt;</option>
+													<option value="<=">&lt;=</option>
+													<option value="=">=</option>
+												</select>
+												<input
+													type="number"
+													step="any"
+													value={filter.value}
+													onChange={(e) => {
+														const newFilters = [...statFilters];
+														newFilters[index] = { ...filter, value: parseFloat(e.target.value) || 0 };
+														setStatFilters(newFilters);
+													}}
+													className="px-3 py-1.5 bg-gray-700 border border-gray-600 rounded-lg text-white text-sm focus:outline-none focus:border-blue-500 w-24"
+												/>
+												<button
+													onClick={() => setStatFilters(statFilters.filter((_, i) => i !== index))}
+													className="px-2 py-1.5 bg-red-600 hover:bg-red-500 text-white text-sm rounded-lg transition-colors"
+												>
+													×
+												</button>
+											</div>
+										))}
+									</div>
 								)}
 							</div>
 						</div>
@@ -571,9 +657,9 @@ export function TableView() {
 
 				<div className="mt-4 text-sm text-gray-500">
 					Showing {sortedPlayers.length} of {tierPlayers.length} players in {selectedTier}
-					{(teamFilter || minGames > 0) && (
+					{(teamFilter || minGames > 0 || statFilters.length > 0) && (
 						<span className="ml-2">
-							(Filtered{teamFilter && ` by ${teamFilter}`}{minGames > 0 && ` with ≥${minGames} games`})
+							(Filtered{teamFilter && ` by ${teamFilter}`}{minGames > 0 && ` with ≥${minGames} games`}{statFilters.length > 0 && ` with ${statFilters.length} stat filter${statFilters.length > 1 ? "s" : ""}`})
 						</span>
 					)}
 				</div>
