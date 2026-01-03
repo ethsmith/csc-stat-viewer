@@ -21,6 +21,11 @@ export function TableView() {
 	const [playerSearchQuery, setPlayerSearchQuery] = React.useState("");
 	const [selectedPlayers, setSelectedPlayers] = React.useState<string[]>([]);
 	const [showPlayerDropdown, setShowPlayerDropdown] = React.useState(false);
+	const [sortColumn, setSortColumn] = React.useState<keyof CscStats | "name" | "team">("rating");
+	const [sortDirection, setSortDirection] = React.useState<"asc" | "desc">("desc");
+	const [teamFilter, setTeamFilter] = React.useState<string>("");
+	const [minGames, setMinGames] = React.useState<number>(0);
+	const [showFilters, setShowFilters] = React.useState(false);
 	const [colorblindMode, setColorblindMode] = useLocalStorage("colorblindMode", "false");
 	const [colorblindColors, setColorblindColors] = useLocalStorage("colorblindColors", JSON.stringify({ good: "#22d3ee", warning: "#fb923c", bad: "#c084fc" }));
 	const [playerTargets, setPlayerTargets] = useLocalStorage("playerTargets", "{}");
@@ -73,10 +78,81 @@ export function TableView() {
 		return tierPlayers.filter(p => p.name.toLowerCase().includes(query));
 	}, [tierPlayers, playerSearchQuery]);
 
+	const availableTeams = React.useMemo(() => {
+		const teams = new Set<string>();
+		tierPlayers.forEach(p => {
+			if (p.team) teams.add(p.team);
+		});
+		return Array.from(teams).sort();
+	}, [tierPlayers]);
+
 	const filteredPlayers = React.useMemo(() => {
-		if (selectedPlayers.length === 0) return tierPlayers;
-		return tierPlayers.filter(p => selectedPlayers.includes(p.name));
-	}, [tierPlayers, selectedPlayers]);
+		let players = tierPlayers;
+		
+		// Apply selected players filter
+		if (selectedPlayers.length > 0) {
+			players = players.filter(p => selectedPlayers.includes(p.name));
+		}
+		
+		// Apply team filter
+		if (teamFilter) {
+			players = players.filter(p => p.team === teamFilter);
+		}
+		
+		// Apply min games filter
+		if (minGames > 0) {
+			players = players.filter(p => (p.gameCount || 0) >= minGames);
+		}
+		
+		return players;
+	}, [tierPlayers, selectedPlayers, teamFilter, minGames]);
+
+	const sortedPlayers = React.useMemo(() => {
+		return [...filteredPlayers].sort((a, b) => {
+			let aVal: string | number | undefined;
+			let bVal: string | number | undefined;
+			
+			if (sortColumn === "name") {
+				aVal = a.name.toLowerCase();
+				bVal = b.name.toLowerCase();
+			} else if (sortColumn === "team") {
+				aVal = (a.team || "").toLowerCase();
+				bVal = (b.team || "").toLowerCase();
+			} else {
+				aVal = a[sortColumn] as number | undefined;
+				bVal = b[sortColumn] as number | undefined;
+			}
+			
+			// Handle undefined values - push them to the end
+			if (aVal === undefined && bVal === undefined) return 0;
+			if (aVal === undefined) return 1;
+			if (bVal === undefined) return -1;
+			
+			let comparison = 0;
+			if (typeof aVal === "string" && typeof bVal === "string") {
+				comparison = aVal.localeCompare(bVal);
+			} else {
+				comparison = (aVal as number) - (bVal as number);
+			}
+			
+			return sortDirection === "asc" ? comparison : -comparison;
+		});
+	}, [filteredPlayers, sortColumn, sortDirection]);
+
+	const handleSort = (column: keyof CscStats | "name" | "team") => {
+		if (sortColumn === column) {
+			setSortDirection(prev => prev === "asc" ? "desc" : "asc");
+		} else {
+			setSortColumn(column);
+			// Default to descending for numeric stats, ascending for name/team
+			setSortDirection(column === "name" || column === "team" ? "asc" : "desc");
+		}
+	};
+
+	const getSortIndicator = (column: keyof CscStats | "name" | "team") => {
+		if (sortColumn !== column) return null;
+		return sortDirection === "asc" ? " ▲" : " ▼";
+	};
 
 	const togglePlayerSelection = (playerName: string) => {
 		setSelectedPlayers(prev => 
@@ -276,7 +352,81 @@ export function TableView() {
 								Clear Filter ({selectedPlayers.length})
 							</button>
 						)}
+
+						<button
+							onClick={() => setShowFilters(!showFilters)}
+							className={`px-4 py-2 rounded-lg transition-colors ${showFilters ? "bg-blue-600 hover:bg-blue-500" : "bg-gray-700 hover:bg-gray-600"} text-white`}
+						>
+							{showFilters ? "Hide Filters" : "More Filters"}
+						</button>
 					</div>
+
+					{showFilters && (
+						<div className="mt-4 p-4 bg-gray-800 rounded-lg border border-gray-700">
+							<h3 className="text-sm font-bold text-white mb-3">Filters & Sorting</h3>
+							<div className="flex flex-wrap gap-4 items-end">
+								<div>
+									<label className="block text-sm text-gray-400 mb-1">Filter by Team</label>
+									<select
+										value={teamFilter}
+										onChange={(e) => setTeamFilter(e.target.value)}
+										className="px-4 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none focus:border-blue-500 min-w-[180px]"
+									>
+										<option value="">All Teams</option>
+										{availableTeams.map(team => (
+											<option key={team} value={team}>{team}</option>
+										))}
+									</select>
+								</div>
+
+								<div>
+									<label className="block text-sm text-gray-400 mb-1">Min Games Played</label>
+									<input
+										type="number"
+										min="0"
+										value={minGames}
+										onChange={(e) => setMinGames(Math.max(0, parseInt(e.target.value) || 0))}
+										className="px-4 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none focus:border-blue-500 w-24"
+									/>
+								</div>
+
+								<div>
+									<label className="block text-sm text-gray-400 mb-1">Sort By</label>
+									<div className="flex gap-2">
+										<select
+											value={sortColumn}
+											onChange={(e) => setSortColumn(e.target.value as keyof CscStats | "name" | "team")}
+											className="px-4 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none focus:border-blue-500 min-w-[150px]"
+										>
+											<option value="name">Player Name</option>
+											<option value="team">Team</option>
+											{ALL_STATS.map(stat => (
+												<option key={stat.key} value={stat.key}>{stat.label}</option>
+											))}
+										</select>
+										<button
+											onClick={() => setSortDirection(prev => prev === "asc" ? "desc" : "asc")}
+											className="px-4 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white hover:bg-gray-600 transition-colors min-w-[80px]"
+										>
+											{sortDirection === "asc" ? "▲ Asc" : "▼ Desc"}
+										</button>
+									</div>
+								</div>
+
+								{(teamFilter || minGames > 0) && (
+									<button
+										onClick={() => {
+											setTeamFilter("");
+											setMinGames(0);
+										}}
+										className="px-4 py-2 bg-red-600 hover:bg-red-500 text-white rounded-lg transition-colors"
+									>
+										Clear Filters
+									</button>
+								)}
+							</div>
+						</div>
+					)}
 
 					{selectedPlayers.length > 0 && (
 						<div className="mt-3 flex flex-wrap gap-2">
@@ -335,39 +485,44 @@ export function TableView() {
 				</div>
 
 				<div className="bg-gray-800 rounded-lg border border-gray-700 overflow-hidden">
-					<div className="overflow-x-auto max-h-[calc(100vh-350px)]">
-						<table className="w-full text-sm">
-							<thead className="bg-gray-900 sticky top-0 z-10">
+					<div className="overflow-auto max-h-[calc(100vh-350px)]">
+						<table className="w-full text-sm border-separate border-spacing-0">
+							<thead className="bg-gray-900">
 								<tr>
-									<th className="px-3 py-2 text-left text-xs font-medium text-gray-400 uppercase tracking-wider sticky left-0 bg-gray-900 z-20 min-w-[150px]">
-										Player
+									<th 
+										className="px-3 py-2 text-left text-xs font-medium text-gray-400 uppercase tracking-wider sticky left-0 top-0 bg-gray-900 z-40 min-w-[150px] cursor-pointer hover:text-white transition-colors select-none"
+										onClick={() => handleSort("name")}
+									>
+										Player{getSortIndicator("name")}
 									</th>
-									<th className="px-3 py-2 text-left text-xs font-medium text-gray-400 uppercase tracking-wider min-w-[80px]">
-										Team
+									<th 
+										className="px-3 py-2 text-left text-xs font-medium text-gray-400 uppercase tracking-wider min-w-[80px] cursor-pointer hover:text-white transition-colors select-none bg-gray-900 sticky top-0 z-20"
+										onClick={() => handleSort("team")}
+									>
+										Team{getSortIndicator("team")}
 									</th>
 									{ALL_STATS.map(stat => (
 										<th 
 											key={stat.key} 
-											className="px-2 py-2 text-center text-xs font-medium text-gray-400 uppercase tracking-wider min-w-[60px]"
+											className="px-2 py-2 text-center text-xs font-medium text-gray-400 uppercase tracking-wider min-w-[60px] cursor-pointer hover:text-white transition-colors select-none bg-gray-900 sticky top-0 z-20"
 											title={stat.description}
+											onClick={() => handleSort(stat.key)}
 										>
-											{stat.label}
+											{stat.label}{getSortIndicator(stat.key)}
 										</th>
 									))}
 								</tr>
 							</thead>
 							<tbody className="divide-y divide-gray-700">
-								{filteredPlayers.length > 0 ? (
-									filteredPlayers
-										.sort((a, b) => (b.rating || 0) - (a.rating || 0))
-										.map((player, index) => {
+								{sortedPlayers.length > 0 ? (
+									sortedPlayers.map((player, index) => {
 											const isComparePlayer = player.name === comparePlayer;
 											return (
 												<tr 
 													key={player.name} 
 													className={`hover:bg-gray-750 ${isComparePlayer ? "bg-blue-900/20" : ""}`}
 												>
-													<td className="px-3 py-2 whitespace-nowrap sticky left-0 bg-gray-800 z-10">
+													<td className="px-3 py-2 whitespace-nowrap sticky left-0 bg-gray-800 z-[5]">
 														<Link href={`/players/${player.name}`}>
 															<span className={`font-medium hover:text-blue-400 cursor-pointer transition-colors ${isComparePlayer ? "text-blue-300" : "text-white"}`}>
 																{player.name}
@@ -415,7 +570,12 @@ export function TableView() {
 				</div>
 
 				<div className="mt-4 text-sm text-gray-500">
-					Showing {filteredPlayers.length} of {tierPlayers.length} players in {selectedTier}
+					Showing {sortedPlayers.length} of {tierPlayers.length} players in {selectedTier}
+					{(teamFilter || minGames > 0) && (
+						<span className="ml-2">
+							(Filtered{teamFilter && ` by ${teamFilter}`}{minGames > 0 && ` with ≥${minGames} games`})
+						</span>
+					)}
 				</div>
 			</div>
 		</div>
