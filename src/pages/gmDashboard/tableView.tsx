@@ -85,10 +85,11 @@ export function TableView() {
 	const availableTeams = React.useMemo(() => {
 		const teams = new Set<string>();
 		tierPlayers.forEach(p => {
-			if (p.team) teams.add(p.team);
+			const teamDisplay = getPlayerTeamDisplay(p.name, p.team, playersData);
+			if (teamDisplay) teams.add(teamDisplay);
 		});
 		return Array.from(teams).sort();
-	}, [tierPlayers]);
+	}, [tierPlayers, playersData]);
 
 	const filteredPlayers = React.useMemo(() => {
 		let players = tierPlayers;
@@ -100,7 +101,7 @@ export function TableView() {
 		
 		// Apply team filter
 		if (teamFilter) {
-			players = players.filter(p => p.team === teamFilter);
+			players = players.filter(p => getPlayerTeamDisplay(p.name, p.team, playersData) === teamFilter);
 		}
 		
 		// Apply min games filter
