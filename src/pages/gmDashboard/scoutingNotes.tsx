@@ -41,6 +41,8 @@ export function ScoutingNotes() {
 	const [collapsedSections, setCollapsedSections] = useLocalStorage("dashboardCollapsedSections", "[]");
 	const [colorblindMode, setColorblindMode] = useLocalStorage("colorblindMode", "false");
 	const [colorblindColors, setColorblindColors] = useLocalStorage("colorblindColors", JSON.stringify({ good: "#22d3ee", warning: "#fb923c", bad: "#c084fc" }));
+	const [tableViewFilterPresets, setTableViewFilterPresets] = useLocalStorage("tableViewFilterPresets", "[]");
+	const [myDraftList, setMyDraftList] = useLocalStorage("myDraftListByTier", "{}");
 	const [showAddPlayerModal, setShowAddPlayerModal] = React.useState(false);
 	const [playerSearchQuery, setPlayerSearchQuery] = React.useState("");
 	const fileInputRef = React.useRef<HTMLInputElement>(null);
@@ -184,7 +186,7 @@ export function ScoutingNotes() {
 
 	// Export/Import handlers using shared utils
 	const handleExport = () => {
-		handleExportSettings(selectedFranchise, playerTargets, playerRoles, selectedStats, sectionOrder, hiddenSections, collapsedSections, scoutingNotes, colorblindMode, colorblindColors);
+		handleExportSettings(selectedFranchise, playerTargets, playerRoles, selectedStats, sectionOrder, hiddenSections, collapsedSections, scoutingNotes, colorblindMode, colorblindColors, tableViewFilterPresets, myDraftList);
 	};
 
 	const handleFileChange = createImportHandler(
@@ -197,7 +199,9 @@ export function ScoutingNotes() {
 		setCollapsedSections,
 		setScoutingNotes,
 		setColorblindMode,
-		setColorblindColors
+		setColorblindColors,
+		setTableViewFilterPresets,
+		setMyDraftList
 	);
 
 	if (isLoading) {

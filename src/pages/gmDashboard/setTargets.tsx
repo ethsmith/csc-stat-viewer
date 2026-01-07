@@ -31,6 +31,12 @@ export function SetTargets() {
 	const [showStatSelector, setShowStatSelector] = React.useState(false);
 	const [colorblindMode, setColorblindMode] = useLocalStorage("colorblindMode", "false");
 	const [colorblindColors, setColorblindColors] = useLocalStorage("colorblindColors", JSON.stringify({ good: "#22d3ee", warning: "#fb923c", bad: "#c084fc" }));
+	const [sectionOrder, setSectionOrder] = useLocalStorage("dashboardSectionOrder", "[]");
+	const [hiddenSections, setHiddenSections] = useLocalStorage("dashboardHiddenSections", "[]");
+	const [collapsedSections, setCollapsedSections] = useLocalStorage("dashboardCollapsedSections", "[]");
+	const [scoutingNotes, setScoutingNotes] = useLocalStorage("scoutingNotes", "{}");
+	const [tableViewFilterPresets, setTableViewFilterPresets] = useLocalStorage("tableViewFilterPresets", "[]");
+	const [myDraftList, setMyDraftList] = useLocalStorage("myDraftListByTier", "{}");
 	const [, setLocation] = useLocation();
 	const fileInputRef = React.useRef<HTMLInputElement>(null);
 	
@@ -117,7 +123,7 @@ export function SetTargets() {
 
 
 	const handleExport = () => {
-		handleExportSettings(selectedFranchise, playerTargets, playerRoles, selectedStats, undefined, undefined, undefined, undefined, colorblindMode, colorblindColors);
+		handleExportSettings(selectedFranchise, playerTargets, playerRoles, selectedStats, sectionOrder, hiddenSections, collapsedSections, scoutingNotes, colorblindMode, colorblindColors, tableViewFilterPresets, myDraftList);
 	};
 
 	const handleImportSettings = createImportHandler(
@@ -125,12 +131,14 @@ export function SetTargets() {
 		setPlayerRoles,
 		setSelectedStats,
 		undefined,
-		undefined,
-		undefined,
-		undefined,
-		undefined,
+		setSectionOrder,
+		setHiddenSections,
+		setCollapsedSections,
+		setScoutingNotes,
 		setColorblindMode,
-		setColorblindColors
+		setColorblindColors,
+		setTableViewFilterPresets,
+		setMyDraftList
 	);
 
 	const handleImportClick = () => {

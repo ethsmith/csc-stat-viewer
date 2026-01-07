@@ -120,13 +120,14 @@ export function DraftList() {
 	const [autoRefresh, setAutoRefresh] = React.useState(true);
 	const [colorblindMode, setColorblindMode] = useLocalStorage("colorblindMode", "false");
 	const [colorblindColors, setColorblindColors] = useLocalStorage("colorblindColors", JSON.stringify({ good: "#22d3ee", warning: "#fb923c", bad: "#c084fc" }));
-	const [playerTargets] = useLocalStorage("playerTargets", "{}");
-	const [playerRoles] = useLocalStorage("playerRoles", "{}");
-	const [selectedStats] = useLocalStorage("selectedTargetStats", '["rating"]');
-	const [sectionOrder] = useLocalStorage("dashboardSectionOrder", "[]");
-	const [hiddenSections] = useLocalStorage("dashboardHiddenSections", "[]");
-	const [collapsedSections] = useLocalStorage("dashboardCollapsedSections", "[]");
-	const [scoutingNotes] = useLocalStorage("scoutingNotes", "{}");
+	const [playerTargets, setPlayerTargets] = useLocalStorage("playerTargets", "{}");
+	const [playerRoles, setPlayerRoles] = useLocalStorage("playerRoles", "{}");
+	const [selectedStats, setSelectedStats] = useLocalStorage("selectedTargetStats", '["rating"]');
+	const [sectionOrder, setSectionOrder] = useLocalStorage("dashboardSectionOrder", "[]");
+	const [hiddenSections, setHiddenSections] = useLocalStorage("dashboardHiddenSections", "[]");
+	const [collapsedSections, setCollapsedSections] = useLocalStorage("dashboardCollapsedSections", "[]");
+	const [scoutingNotes, setScoutingNotes] = useLocalStorage("scoutingNotes", "{}");
+	const [tableViewFilterPresets, setTableViewFilterPresets] = useLocalStorage("tableViewFilterPresets", "[]");
 	const [myDraftList, setMyDraftList] = useLocalStorage("myDraftListByTier", "{}");
 	const [statsPopupPlayer, setStatsPopupPlayer] = React.useState<string | null>(null);
 	const fileInputRef = React.useRef<HTMLInputElement>(null);
@@ -420,7 +421,9 @@ export function DraftList() {
 			collapsedSections,
 			scoutingNotes,
 			colorblindMode,
-			colorblindColors
+			colorblindColors,
+			tableViewFilterPresets,
+			myDraftList
 		);
 	};
 
@@ -429,16 +432,18 @@ export function DraftList() {
 	};
 
 	const handleImportSettings = createImportHandler(
-		() => {},
-		() => {},
-		() => {},
-		() => {},
-		() => {},
-		() => {},
-		() => {},
-		() => {},
-		() => {},
-		() => {}
+		setPlayerTargets,
+		setPlayerRoles,
+		setSelectedStats,
+		setSelectedFranchise,
+		setSectionOrder,
+		setHiddenSections,
+		setCollapsedSections,
+		setScoutingNotes,
+		setColorblindMode,
+		setColorblindColors,
+		setTableViewFilterPresets,
+		setMyDraftList
 	);
 
 	const handleClearFranchise = () => {

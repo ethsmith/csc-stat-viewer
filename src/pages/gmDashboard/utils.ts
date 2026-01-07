@@ -330,7 +330,9 @@ export const handleExportSettings = (
 	collapsedSections?: string,
 	scoutingNotes?: string,
 	colorblindMode?: string,
-	colorblindColors?: string
+	colorblindColors?: string,
+	tableViewFilterPresets?: string,
+	myDraftList?: string
 ) => {
 	const exportData = {
 		franchise: selectedFranchise,
@@ -343,8 +345,10 @@ export const handleExportSettings = (
 		scoutingNotes: scoutingNotes,
 		colorblindMode: colorblindMode,
 		colorblindColors: colorblindColors,
+		tableViewFilterPresets: tableViewFilterPresets,
+		myDraftListByTier: myDraftList,
 		exportDate: new Date().toISOString(),
-		version: "1.4"
+		version: "1.6"
 	};
 
 	const dataStr = JSON.stringify(exportData, null, 2);
@@ -369,7 +373,9 @@ export const createImportHandler = (
 	setCollapsedSections?: (value: string) => void,
 	setScoutingNotes?: (value: string) => void,
 	setColorblindMode?: (value: string) => void,
-	setColorblindColors?: (value: string) => void
+	setColorblindColors?: (value: string) => void,
+	setTableViewFilterPresets?: (value: string) => void,
+	setMyDraftList?: (value: string) => void
 ) => {
 	return (event: React.ChangeEvent<HTMLInputElement>) => {
 		const file = event.target.files?.[0];
@@ -410,6 +416,12 @@ export const createImportHandler = (
 				}
 				if (importData.colorblindColors && setColorblindColors) {
 					setColorblindColors(importData.colorblindColors);
+				}
+				if (importData.tableViewFilterPresets && setTableViewFilterPresets) {
+					setTableViewFilterPresets(importData.tableViewFilterPresets);
+				}
+				if (importData.myDraftListByTier && setMyDraftList) {
+					setMyDraftList(importData.myDraftListByTier);
 				}
 
 				alert('Settings imported successfully!');

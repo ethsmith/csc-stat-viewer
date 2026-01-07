@@ -39,6 +39,7 @@ export function TableView() {
 	const [hiddenSections, setHiddenSections] = useLocalStorage("dashboardHiddenSections", "[]");
 	const [collapsedSections, setCollapsedSections] = useLocalStorage("dashboardCollapsedSections", "[]");
 	const [scoutingNotes, setScoutingNotes] = useLocalStorage("scoutingNotes", "{}");
+	const [myDraftList, setMyDraftList] = useLocalStorage("myDraftListByTier", "{}");
 	const fileInputRef = React.useRef<HTMLInputElement>(null);
 
 	const { 
@@ -283,7 +284,7 @@ export function TableView() {
 	};
 
 	const handleExport = () => {
-		handleExportSettings(selectedFranchise, playerTargets, playerRoles, selectedStats, sectionOrder, hiddenSections, collapsedSections, scoutingNotes, colorblindMode, colorblindColors);
+		handleExportSettings(selectedFranchise, playerTargets, playerRoles, selectedStats, sectionOrder, hiddenSections, collapsedSections, scoutingNotes, colorblindMode, colorblindColors, savedFilterPresets, myDraftList);
 	};
 
 	const handleImportSettings = createImportHandler(
@@ -296,7 +297,9 @@ export function TableView() {
 		setCollapsedSections,
 		setScoutingNotes,
 		setColorblindMode,
-		setColorblindColors
+		setColorblindColors,
+		setSavedFilterPresets,
+		setMyDraftList
 	);
 
 	if (isLoading || isLoadingStats) {
