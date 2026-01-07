@@ -11,6 +11,7 @@ import { Franchise } from "../../models/franchise-types";
 import { useQuery } from "@tanstack/react-query";
 import { PlayerTypes } from "../../common/utils/player-utils";
 import { PlayerRole, AVAILABLE_STATS } from "./types";
+import { getPlayerTeamDisplay as getTeamDisplay } from "./utils";
 
 // Scouting note types
 type Playstyle = "Aggressive" | "Passive";
@@ -129,7 +130,30 @@ export function DraftList() {
 	const [scoutingNotes, setScoutingNotes] = useLocalStorage("scoutingNotes", "{}");
 	const [tableViewFilterPresets, setTableViewFilterPresets] = useLocalStorage("tableViewFilterPresets", "[]");
 	const [myDraftList, setMyDraftList] = useLocalStorage("myDraftListByTier", "{}");
+	const [selectedPreset, setSelectedPreset] = React.useState<string>("");
 	const [statsPopupPlayer, setStatsPopupPlayer] = React.useState<string | null>(null);
+
+	// Filter preset type matching tableView
+	type FilterPreset = {
+		name: string;
+		teamFilter: string;
+		minGames: number;
+		statFilters: Array<{ stat: keyof CscStats; operator: "<" | ">" | "<=" | ">=" | "="; value: number }>;
+		sortColumn: keyof CscStats | "name" | "team";
+		sortDirection: "asc" | "desc";
+	};
+
+	const parsedPresets: FilterPreset[] = React.useMemo(() => {
+		try {
+			return JSON.parse(tableViewFilterPresets);
+		} catch {
+			return [];
+		}
+	}, [tableViewFilterPresets]);
+
+	const activePreset = React.useMemo(() => {
+		return parsedPresets.find(p => p.name === selectedPreset) || null;
+	}, [parsedPresets, selectedPreset]);
 	const fileInputRef = React.useRef<HTMLInputElement>(null);
 
 	// Parse selected stats from localStorage
@@ -305,6 +329,33 @@ export function DraftList() {
 				   playerType !== PlayerTypes.SPECTATOR;
 		});
 
+		// Apply preset filters if one is selected
+		if (activePreset) {
+			// Team filter
+			if (activePreset.teamFilter) {
+				players = players.filter(p => getPlayerTeamDisplay(p.name, p.team, playersData) === activePreset.teamFilter);
+			}
+			// Min games filter
+			if (activePreset.minGames > 0) {
+				players = players.filter(p => (p.gameCount || 0) >= activePreset.minGames);
+			}
+			// Stat filters
+			activePreset.statFilters.forEach(filter => {
+				players = players.filter(p => {
+					const val = p[filter.stat] as number | undefined;
+					if (val === undefined) return false;
+					switch (filter.operator) {
+						case "<": return val < filter.value;
+						case ">": return val > filter.value;
+						case "<=": return val <= filter.value;
+						case ">=": return val >= filter.value;
+						case "=": return val === filter.value;
+						default: return true;
+					}
+				});
+			});
+		}
+
 		// Filter by search query
 		if (searchQuery) {
 			const query = searchQuery.toLowerCase();
@@ -318,25 +369,58 @@ export function DraftList() {
 			players = players.filter(p => draftStatusMap[p.name.toLowerCase()]);
 		}
 
-		// Sort by availability first (Available, Unknown, Drafted), then by rating descending
-		return [...players].sort((a, b) => {
-			const aStatus = draftStatusMap[a.name.toLowerCase()];
-			const bStatus = draftStatusMap[b.name.toLowerCase()];
-			
-			// Get sort priority: Available (false) = 0, Unknown (undefined) = 1, Drafted (true) = 2
-			const getPriority = (status: boolean | undefined) => {
-				if (status === false) return 0; // Available
-				if (status === undefined) return 1; // Unknown
-				return 2; // Drafted
-			};
-			
-			const priorityDiff = getPriority(aStatus) - getPriority(bStatus);
-			if (priorityDiff !== 0) return priorityDiff;
-			
-			// Within same availability status, sort by rating descending
-			return (b.rating || 0) - (a.rating || 0);
-		});
-	}, [tierPlayers, searchQuery, showDraftedOnly, draftStatusMap, playerTypeMap]);
+		// Sort: if preset has sorting, use it; otherwise use availability + rating
+		let sorted = [...players];
+		if (activePreset) {
+			sorted.sort((a, b) => {
+				let aVal: string | number | undefined;
+				let bVal: string | number | undefined;
+				
+				if (activePreset.sortColumn === "name") {
+					aVal = a.name.toLowerCase();
+					bVal = b.name.toLowerCase();
+				} else if (activePreset.sortColumn === "team") {
+					aVal = (a.team || "").toLowerCase();
+					bVal = (b.team || "").toLowerCase();
+				} else {
+					aVal = a[activePreset.sortColumn] as number | undefined;
+					bVal = b[activePreset.sortColumn] as number | undefined;
+				}
+				
+				if (aVal === undefined && bVal === undefined) return 0;
+				if (aVal === undefined) return 1;
+				if (bVal === undefined) return -1;
+				
+				let comparison = 0;
+				if (typeof aVal === "string" && typeof bVal === "string") {
+					comparison = aVal.localeCompare(bVal);
+				} else {
+					comparison = (aVal as number) - (bVal as number);
+				}
+				
+				return activePreset.sortDirection === "asc" ? comparison : -comparison;
+			});
+		} else {
+			// Default: Sort by availability first (Available, Unknown, Drafted), then by rating descending
+			sorted.sort((a, b) => {
+				const aStatus = draftStatusMap[a.name.toLowerCase()];
+				const bStatus = draftStatusMap[b.name.toLowerCase()];
+				
+				const getPriority = (status: boolean | undefined) => {
+					if (status === false) return 0; // Available
+					if (status === undefined) return 1; // Unknown
+					return 2; // Drafted
+				};
+				
+				const priorityDiff = getPriority(aStatus) - getPriority(bStatus);
+				if (priorityDiff !== 0) return priorityDiff;
+				
+				return (b.rating || 0) - (a.rating || 0);
+			});
+		}
+		
+		return sorted;
+	}, [tierPlayers, searchQuery, showDraftedOnly, draftStatusMap, playerTypeMap, activePreset, playersData]);
 
 	// Count available and drafted players
 	const playerCounts = React.useMemo(() => {
@@ -517,6 +601,21 @@ export function DraftList() {
 								<option value="all">All Players</option>
 								<option value="available">Available Only</option>
 								<option value="drafted">Drafted Only</option>
+							</select>
+						</div>
+
+						{/* Saved Filter Preset */}
+						<div>
+							<label className="block text-sm font-medium text-gray-400 mb-1">Filter Preset</label>
+							<select
+								value={selectedPreset}
+								onChange={(e) => setSelectedPreset(e.target.value)}
+								className="px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none focus:border-blue-500 min-w-[150px]"
+							>
+								<option value="">No Preset</option>
+								{parsedPresets.map(preset => (
+									<option key={preset.name} value={preset.name}>{preset.name}</option>
+								))}
 							</select>
 						</div>
 
