@@ -27,6 +27,9 @@ export function TableView() {
 	const [minGames, setMinGames] = React.useState<number>(0);
 	const [showFilters, setShowFilters] = React.useState(false);
 	const [statFilters, setStatFilters] = React.useState<Array<{ stat: keyof CscStats; operator: "<" | ">" | "<=" | ">=" | "="; value: number }>>([]);
+	const [savedFilterPresets, setSavedFilterPresets] = useLocalStorage("tableViewFilterPresets", "[]");
+	const [showSavePresetModal, setShowSavePresetModal] = React.useState(false);
+	const [newPresetName, setNewPresetName] = React.useState("");
 	const [colorblindMode, setColorblindMode] = useLocalStorage("colorblindMode", "false");
 	const [colorblindColors, setColorblindColors] = useLocalStorage("colorblindColors", JSON.stringify({ good: "#22d3ee", warning: "#fb923c", bad: "#c084fc" }));
 	const [playerTargets, setPlayerTargets] = useLocalStorage("playerTargets", "{}");
@@ -177,6 +180,59 @@ export function TableView() {
 				? prev.filter(n => n !== playerName)
 				: [...prev, playerName]
 		);
+	};
+
+	type FilterPreset = {
+		name: string;
+		teamFilter: string;
+		minGames: number;
+		statFilters: Array<{ stat: keyof CscStats; operator: "<" | ">" | "<=" | ">=" | "="; value: number }>;
+		sortColumn: keyof CscStats | "name" | "team";
+		sortDirection: "asc" | "desc";
+	};
+
+	const parsedPresets: FilterPreset[] = React.useMemo(() => {
+		try {
+			return JSON.parse(savedFilterPresets);
+		} catch {
+			return [];
+		}
+	}, [savedFilterPresets]);
+
+	const saveCurrentPreset = () => {
+		if (!newPresetName.trim()) return;
+		const newPreset: FilterPreset = {
+			name: newPresetName.trim(),
+			teamFilter,
+			minGames,
+			statFilters,
+			sortColumn,
+			sortDirection,
+		};
+		const existingIndex = parsedPresets.findIndex(p => p.name === newPreset.name);
+		let updatedPresets: FilterPreset[];
+		if (existingIndex >= 0) {
+			updatedPresets = [...parsedPresets];
+			updatedPresets[existingIndex] = newPreset;
+		} else {
+			updatedPresets = [...parsedPresets, newPreset];
+		}
+		setSavedFilterPresets(JSON.stringify(updatedPresets));
+		setNewPresetName("");
+		setShowSavePresetModal(false);
+	};
+
+	const loadPreset = (preset: FilterPreset) => {
+		setTeamFilter(preset.teamFilter);
+		setMinGames(preset.minGames);
+		setStatFilters(preset.statFilters);
+		setSortColumn(preset.sortColumn);
+		setSortDirection(preset.sortDirection);
+	};
+
+	const deletePreset = (presetName: string) => {
+		const updatedPresets = parsedPresets.filter(p => p.name !== presetName);
+		setSavedFilterPresets(JSON.stringify(updatedPresets));
 	};
 
 	const getComparisonColor = (
@@ -444,6 +500,87 @@ export function TableView() {
 								)}
 							</div>
 
+							{/* Saved Presets Section */}
+							<div className="mt-4 pt-4 border-t border-gray-600">
+								<div className="flex items-center justify-between mb-3">
+									<h4 className="text-sm font-medium text-white">Saved Presets</h4>
+									<button
+										onClick={() => setShowSavePresetModal(true)}
+										className="px-3 py-1 bg-green-600 hover:bg-green-500 text-white text-sm rounded-lg transition-colors"
+									>
+										+ Save Current
+									</button>
+								</div>
+								{parsedPresets.length === 0 ? (
+									<p className="text-gray-500 text-sm">No saved presets. Click "Save Current" to save your current filters and sorting.</p>
+								) : (
+									<div className="flex flex-wrap gap-2">
+										{parsedPresets.map(preset => (
+											<div key={preset.name} className="inline-flex items-center gap-1 bg-gray-700 rounded-lg overflow-hidden">
+												<button
+													onClick={() => loadPreset(preset)}
+													className="px-3 py-1.5 text-white text-sm hover:bg-gray-600 transition-colors"
+													title={`Load preset: ${preset.name}`}
+												>
+													{preset.name}
+												</button>
+												<button
+													onClick={() => deletePreset(preset.name)}
+													className="px-2 py-1.5 text-red-400 hover:bg-red-600 hover:text-white text-sm transition-colors"
+													title="Delete preset"
+												>
+													×
+												</button>
+											</div>
+										))}
+									</div>
+								)}
+							</div>
+
+							{/* Save Preset Modal */}
+							{showSavePresetModal && (
+								<div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+									<div className="bg-gray-800 rounded-lg p-6 w-96 border border-gray-700">
+										<h3 className="text-lg font-bold text-white mb-4">Save Filter Preset</h3>
+										<input
+											type="text"
+											placeholder="Enter preset name..."
+											value={newPresetName}
+											onChange={(e) => setNewPresetName(e.target.value)}
+											onKeyDown={(e) => e.key === "Enter" && saveCurrentPreset()}
+											className="w-full px-4 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:border-blue-500 mb-4"
+											autoFocus
+										/>
+										<div className="text-sm text-gray-400 mb-4">
+											<p className="mb-1">This will save:</p>
+											<ul className="list-disc list-inside text-xs">
+												<li>Team filter: {teamFilter || "None"}</li>
+												<li>Min games: {minGames}</li>
+												<li>Stat filters: {statFilters.length}</li>
+												<li>Sort: {sortColumn} ({sortDirection})</li>
+											</ul>
+										</div>
+										<div className="flex gap-2 justify-end">
+											<button
+												onClick={() => {
+													setShowSavePresetModal(false);
+													setNewPresetName("");
+												}}
+												className="px-4 py-2 bg-gray-600 hover:bg-gray-500 text-white rounded-lg transition-colors"
+											>
+												Cancel
+											</button>
+											<button
+												onClick={saveCurrentPreset}
+												disabled={!newPresetName.trim()}
+												className="px-4 py-2 bg-green-600 hover:bg-green-500 disabled:bg-gray-600 disabled:cursor-not-allowed text-white rounded-lg transition-colors"
+											>
+												Save
+											</button>
+										</div>
+									</div>
+								</div>
+							)}
 							{/* Stat Filters Section */}
 							<div className="mt-4 pt-4 border-t border-gray-600">
 								<div className="flex items-center justify-between mb-3">
