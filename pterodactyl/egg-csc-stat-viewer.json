@@ -1,19 +1,23 @@
 {
+    "_comment": "DO NOT EDIT: FILE ACTIVE ON ACTIVE PANEL",
     "meta": {
         "version": "PTDL_v2",
         "update_url": null
     },
     "exported_at": "2026-01-08T17:12:00+00:00",
     "name": "CSC Stat Viewer",
-    "author": "ethsmith",
-    "description": "A React/Vite statistics viewer application with automatic GitHub updates. Pulls from a configurable GitHub repository on each restart.",
-    "features": null,
+    "author": "ethan@example.com",
+    "description": "A React/Vite statistics viewer application with automatic GitHub updates.",
+    "features": [
+        "eula",
+        "pid_limit"
+    ],
     "docker_images": {
         "ghcr.io/parkervcp/yolks:nodejs_20": "ghcr.io/parkervcp/yolks:nodejs_20",
         "ghcr.io/parkervcp/yolks:nodejs_18": "ghcr.io/parkervcp/yolks:nodejs_18"
     },
     "file_denylist": [],
-    "startup": "if [ \"${AUTO_UPDATE}\" = \"true\" ] && [ -d .git ]; then echo 'Pulling latest updates...' && git pull; fi && npm install --production=false && npm run build && npx serve -s build -l ${SERVER_PORT}",
+    "startup": "npm install && npm run build && npx serve -s build -l ${SERVER_PORT}",
     "config": {
         "files": "{}",
         "startup": "{\r\n    \"done\": \"Accepting connections\"\r\n}",
@@ -22,40 +26,30 @@
     },
     "scripts": {
         "installation": {
-            "script": "#!/bin/bash\nset -e\n\ncd /mnt/server\necho \"Current directory: $(pwd)\"\n\nif [ ! -z \"${GITHUB_TOKEN}\" ] && [ \"${GITHUB_TOKEN}\" != \"\" ]; then\n    echo \"Cloning with authentication...\"\n    if [ -d \".git\" ]; then\n        git pull\n    else\n        git clone https://${GITHUB_TOKEN}@github.com/${GITHUB_REPO}.git .\n    fi\nelse\n    echo \"Cloning public repo...\"\n    if [ -d \".git\" ]; then\n        git pull\n    else\n        git clone https://github.com/${GITHUB_REPO}.git .\n    fi\nfi\n\nif [ ! -z \"${GITHUB_BRANCH}\" ] && [ \"${GITHUB_BRANCH}\" != \"main\" ]; then\n    echo \"Checking out branch ${GITHUB_BRANCH}...\"\n    git checkout ${GITHUB_BRANCH}\nfi\n\necho \"Listing files...\"\nls -la\n\nif [ -f \"package.json\" ]; then\n    echo \"Installing dependencies...\"\n    npm install\nelse\n    echo \"ERROR: package.json not found!\"\n    exit 1\nfi\n\necho \"Installation complete!\"",
+            "script": "#!/bin/bash\nset -e\n\ncd /mnt/server\necho \"Current directory: $(pwd)\"\n\nif [ ! -z \"${GIT_REPO}\" ]; then\n    echo \"Cloning from ${GIT_REPO}...\"\n    if [ -d \".git\" ]; then\n        git pull\n    else\n        git clone ${GIT_REPO} .\n    fi\n    \n    if [ ! -z \"${GIT_BRANCH}\" ]; then\n        echo \"Checking out branch ${GIT_BRANCH}...\"\n        git checkout ${GIT_BRANCH}\n    fi\nelse\n    echo \"ERROR: GIT_REPO is not set\"\n    exit 1\nfi\n\necho \"Listing files...\"\nls -la\n\nif [ -f \"package.json\" ]; then\n    echo \"Installing dependencies...\"\n    npm install\nelse\n    echo \"ERROR: package.json not found!\"\n    exit 1\nfi\n\necho \"Installation complete!\"",
             "container": "ghcr.io/parkervcp/yolks:nodejs_20",
             "entrypoint": "bash"
         }
     },
     "variables": [
         {
-            "name": "GitHub Repository",
-            "description": "The GitHub repository to clone (format: owner/repo, e.g., ethsmith/csc-stat-viewer)",
-            "env_variable": "GITHUB_REPO",
-            "default_value": "ethsmith/csc-stat-viewer",
-            "user_viewable": true,
-            "user_editable": true,
-            "rules": "required|string|max:100",
-            "field_type": "text"
-        },
-        {
-            "name": "GitHub Branch",
-            "description": "The branch to clone and pull from",
-            "env_variable": "GITHUB_BRANCH",
-            "default_value": "main",
-            "user_viewable": true,
-            "user_editable": true,
-            "rules": "required|string|max:50",
-            "field_type": "text"
-        },
-        {
-            "name": "GitHub Token",
-            "description": "Personal access token for private repositories (leave empty for public repos)",
-            "env_variable": "GITHUB_TOKEN",
+            "name": "Git Repository",
+            "description": "Git repository URL to clone (e.g., https://github.com/user/repo)",
+            "env_variable": "GIT_REPO",
             "default_value": "",
             "user_viewable": true,
             "user_editable": true,
-            "rules": "nullable|string|max:200",
+            "rules": "nullable|string",
+            "field_type": "text"
+        },
+        {
+            "name": "Git Branch",
+            "description": "Git branch to checkout. Leave empty for default branch.",
+            "env_variable": "GIT_BRANCH",
+            "default_value": "main",
+            "user_viewable": true,
+            "user_editable": true,
+            "rules": "nullable|string",
             "field_type": "text"
         },
         {
@@ -65,17 +59,7 @@
             "default_value": "true",
             "user_viewable": true,
             "user_editable": true,
-            "rules": "required|string|in:true,false",
-            "field_type": "text"
-        },
-        {
-            "name": "Node Environment",
-            "description": "Node environment (production or development)",
-            "env_variable": "NODE_ENV",
-            "default_value": "production",
-            "user_viewable": true,
-            "user_editable": true,
-            "rules": "required|string|in:production,development",
+            "rules": "required|string|in:true,false,0,1",
             "field_type": "text"
         }
     ]
