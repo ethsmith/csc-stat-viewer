@@ -53,7 +53,7 @@
             "name": "Auto Update",
             "description": "Pull the latest files on startup when using a GitHub repo.",
             "env_variable": "AUTO_UPDATE",
-            "default_value": "0",
+            "default_value": "1",
             "user_viewable": true,
             "user_editable": true,
             "rules": "required|boolean",
