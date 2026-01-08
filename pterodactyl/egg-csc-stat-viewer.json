@@ -26,7 +26,7 @@
     },
     "scripts": {
         "installation": {
-            "script": "#!/bin/bash\nset -e\n\ncd /mnt/server\necho \"Current directory: $(pwd)\"\n\nif [ ! -z \"${GIT_REPO}\" ]; then\n    echo \"Cloning from ${GIT_REPO}...\"\n    if [ -d \".git\" ]; then\n        git pull\n    else\n        git clone ${GIT_REPO} .\n    fi\n    \n    if [ ! -z \"${GIT_BRANCH}\" ]; then\n        echo \"Checking out branch ${GIT_BRANCH}...\"\n        git checkout ${GIT_BRANCH}\n    fi\nelse\n    echo \"ERROR: GIT_REPO is not set\"\n    exit 1\nfi\n\necho \"Listing files...\"\nls -la\n\nif [ -f \"package.json\" ]; then\n    echo \"Installing dependencies...\"\n    npm install\nelse\n    echo \"ERROR: package.json not found!\"\n    exit 1\nfi\n\necho \"Installation complete!\"",
+            "script": "#!/bin/bash\nset -e\n\napt update\napt install -y git\n\nmkdir -p /mnt/server\ncd /mnt/server\necho \"Current directory: $(pwd)\"\n\nif [ ! -z \"${GIT_REPO}\" ]; then\n    echo \"Cloning from ${GIT_REPO}...\"\n    if [ -d \".git\" ]; then\n        echo \"Git repo exists, pulling...\"\n        git pull\n    else\n        echo \"Cloning fresh...\"\n        git clone ${GIT_REPO} .\n    fi\n    \n    if [ ! -z \"${GIT_BRANCH}\" ]; then\n        echo \"Checking out branch ${GIT_BRANCH}...\"\n        git checkout ${GIT_BRANCH}\n    fi\nelse\n    echo \"ERROR: GIT_REPO is not set. Please set the Git Repository variable.\"\n    exit 1\nfi\n\necho \"Listing files...\"\nls -la\n\nif [ -f \"package.json\" ]; then\n    echo \"Installing dependencies...\"\n    npm install\nelse\n    echo \"ERROR: package.json not found!\"\n    exit 1\nfi\n\necho \"Installation complete!\"",
             "container": "ghcr.io/parkervcp/yolks:nodejs_20",
             "entrypoint": "bash"
         }
@@ -36,7 +36,7 @@
             "name": "Git Repository",
             "description": "Git repository URL to clone (e.g., https://github.com/user/repo)",
             "env_variable": "GIT_REPO",
-            "default_value": "",
+            "default_value": "https://github.com/ethsmith/csc-stat-viewer",
             "user_viewable": true,
             "user_editable": true,
             "rules": "nullable|string",
