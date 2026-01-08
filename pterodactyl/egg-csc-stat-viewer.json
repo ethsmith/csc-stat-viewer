@@ -23,7 +23,7 @@
     },
     "scripts": {
         "installation": {
-            "script": "#!\/bin\/bash\r\ncd \/mnt\/server\r\necho \"Cloning repo...\"\r\nif [ -z \"${GIT_ADDRESS}\" ]; then\r\n    echo \"ERROR: GIT_ADDRESS not set\"\r\n    exit 1\r\nfi\r\nif [ -d .git ]; then\r\n    git pull\r\nelse\r\n    git clone ${GIT_ADDRESS} .\r\nfi\r\necho \"Clone complete\"\r\nls -la",
+            "script": "#!\/bin\/bash\r\ncd \/mnt\/server\r\necho \"Cloning repo...\"\r\nif [ -z \"${GIT_ADDRESS}\" ]; then\r\n    echo \"ERROR: GIT_ADDRESS not set\"\r\n    exit 1\r\nfi\r\nif [ -d .git ]; then\r\n    git pull\r\nelse\r\n    if [ -z \"${BRANCH}\" ]; then\r\n        echo \"Cloning default branch\"\r\n        git clone ${GIT_ADDRESS} .\r\n    else\r\n        echo \"Cloning branch: ${BRANCH}\"\r\n        git clone --single-branch --branch ${BRANCH} ${GIT_ADDRESS} .\r\n    fi\r\nfi\r\necho \"Clone complete\"\r\nls -la",
             "container": "ghcr.io\/parkervcp\/installers:debian",
             "entrypoint": "bash"
         }
