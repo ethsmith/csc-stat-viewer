@@ -132,6 +132,7 @@ export function DraftList() {
 	const [myDraftList, setMyDraftList] = useLocalStorage("myDraftListByTier", "{}");
 	const [selectedPreset, setSelectedPreset] = React.useState<string>("");
 	const [statsPopupPlayer, setStatsPopupPlayer] = React.useState<string | null>(null);
+	const [similarPlayerTarget, setSimilarPlayerTarget] = React.useState<string | null>(null);
 
 	// Filter preset type matching tableView
 	type FilterPreset = {
@@ -422,6 +423,49 @@ export function DraftList() {
 		return sorted;
 	}, [tierPlayers, searchQuery, showDraftedOnly, draftStatusMap, playerTypeMap, activePreset, playersData]);
 
+	// Find similar players based on tracked stats
+	const similarPlayers = React.useMemo(() => {
+		if (!similarPlayerTarget) return [];
+		
+		const targetPlayer = tierPlayers.find(p => p.name === similarPlayerTarget);
+		if (!targetPlayer) return [];
+		
+		const statsToCompare = trackedStats.length > 0 
+			? trackedStats.map(s => s.key) 
+			: ["rating"];
+		
+		const playersWithScores = tierPlayers
+			.filter(p => p.name !== similarPlayerTarget)
+			.map(player => {
+				let totalScore = 0;
+				let betterOrSimilarCount = 0;
+				let validStats = 0;
+				
+				statsToCompare.forEach(statKey => {
+					const targetVal = targetPlayer[statKey as keyof CscStats] as number | undefined;
+					const playerVal = player[statKey as keyof CscStats] as number | undefined;
+					
+					if (targetVal !== undefined && playerVal !== undefined) {
+						validStats++;
+						const threshold = targetVal * 0.9;
+						if (playerVal >= threshold) {
+							betterOrSimilarCount++;
+						}
+						totalScore += playerVal;
+					}
+				});
+				
+				const similarityRatio = validStats > 0 ? betterOrSimilarCount / validStats : 0;
+				
+				return { player, totalScore, similarityRatio, betterOrSimilarCount, validStats };
+			})
+			.filter(p => p.similarityRatio >= 0.5)
+			.sort((a, b) => b.totalScore - a.totalScore)
+			.slice(0, 20);
+		
+		return playersWithScores;
+	}, [similarPlayerTarget, tierPlayers, trackedStats]);
+
 	// Count available and drafted players
 	const playerCounts = React.useMemo(() => {
 		let available = 0;
@@ -690,13 +734,14 @@ export function DraftList() {
 										<th className="px-3 py-2 text-left text-xs font-semibold text-gray-300">Player</th>
 										<th className="px-3 py-2 text-center text-xs font-semibold text-gray-300">Rating</th>
 										<th className="px-3 py-2 text-center text-xs font-semibold text-gray-300">Stats</th>
+										<th className="px-3 py-2 text-center text-xs font-semibold text-gray-300">Similar</th>
 										<th className="px-3 py-2 text-center text-xs font-semibold text-gray-300">Action</th>
 									</tr>
 								</thead>
 								<tbody className="divide-y divide-gray-700">
 									{filteredPlayers.length === 0 ? (
 										<tr>
-											<td colSpan={5} className="px-4 py-8 text-center text-gray-400">
+											<td colSpan={6} className="px-4 py-8 text-center text-gray-400">
 												No players found
 											</td>
 										</tr>
@@ -750,6 +795,15 @@ export function DraftList() {
 														</button>
 													</td>
 													<td className="px-3 py-2 text-center">
+														<button
+															onClick={() => setSimilarPlayerTarget(similarPlayerTarget === player.name ? null : player.name)}
+															className={`px-2 py-1 text-xs rounded transition-colors ${similarPlayerTarget === player.name ? 'bg-purple-600 text-white' : 'bg-gray-600 hover:bg-gray-500 text-gray-200'}`}
+															title="Find similar players"
+														>
+															🔍
+														</button>
+													</td>
+													<td className="px-3 py-2 text-center">
 														{isInMyList ? (
 															<button
 																onClick={() => removeFromMyDraftList(player.name, playerDraftTier!)}
@@ -772,7 +826,7 @@ export function DraftList() {
 												{/* Inline Stats Row */}
 												{statsPopupPlayer === player.name && (
 													<tr className="bg-gray-750/50">
-														<td colSpan={5} className="px-3 py-2">
+														<td colSpan={6} className="px-3 py-2">
 															<div className="flex flex-wrap gap-3 text-xs">
 																{trackedStats.length === 0 ? (
 																	<span className="text-gray-500">No stats being tracked. Configure in Set Targets.</span>
@@ -803,6 +857,103 @@ export function DraftList() {
 								</tbody>
 							</table>
 						</div>
+
+						{/* Similar Players Panel */}
+						{similarPlayerTarget && (
+							<div className="border-t border-gray-700 bg-purple-900/20">
+								<div className="px-4 py-3 bg-purple-900/30 border-b border-purple-700 flex justify-between items-center">
+									<h3 className="text-sm font-semibold text-purple-300">
+										🔍 Players Similar to {similarPlayerTarget}
+										<span className="ml-2 text-xs font-normal text-purple-400">
+											({similarPlayers.length} found)
+										</span>
+									</h3>
+									<button
+										onClick={() => setSimilarPlayerTarget(null)}
+										className="text-purple-400 hover:text-purple-200 transition-colors"
+									>
+										✕
+									</button>
+								</div>
+								<div className="max-h-[300px] overflow-y-auto">
+									{similarPlayers.length === 0 ? (
+										<div className="px-4 py-6 text-center text-gray-400 text-sm">
+											No similar players found. Try tracking more stats in Set Targets.
+										</div>
+									) : (
+										<table className="w-full">
+											<thead className="bg-purple-900/30 sticky top-0">
+												<tr>
+													<th className="px-3 py-2 text-left text-xs font-semibold text-purple-300">#</th>
+													<th className="px-3 py-2 text-left text-xs font-semibold text-purple-300">Player</th>
+													<th className="px-3 py-2 text-center text-xs font-semibold text-purple-300">Status</th>
+													{trackedStats.slice(0, 4).map(stat => (
+														<th key={stat.key} className="px-3 py-2 text-center text-xs font-semibold text-purple-300">
+															{stat.label}
+														</th>
+													))}
+													<th className="px-3 py-2 text-center text-xs font-semibold text-purple-300">Action</th>
+												</tr>
+											</thead>
+											<tbody className="divide-y divide-purple-800/50">
+												{similarPlayers.map((item, idx) => {
+													const isDrafted = draftStatusMap[item.player.name.toLowerCase()];
+													const statusKnown = isDrafted !== undefined;
+													const isInList = isPlayerInMyDraftList(item.player.name);
+													
+													return (
+														<tr key={item.player.name} className={`hover:bg-purple-900/30 ${isDrafted ? 'opacity-50' : ''}`}>
+															<td className="px-3 py-2 text-xs text-gray-400">{idx + 1}</td>
+															<td className="px-3 py-2">
+																<div className={`font-medium text-sm ${isDrafted ? 'text-gray-500' : 'text-white'}`}>
+																	{item.player.name}
+																</div>
+																<div className="text-xs text-gray-500">
+																	{getPlayerTeamDisplay(item.player.name, item.player.team, playersData)}
+																</div>
+															</td>
+															<td className="px-3 py-2 text-center">
+																{!statusKnown ? (
+																	<span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-yellow-900 text-yellow-300">?</span>
+																) : isDrafted ? (
+																	<span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-red-900 text-red-300">Drafted</span>
+																) : (
+																	<span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-green-900 text-green-300">Available</span>
+																)}
+															</td>
+															{trackedStats.slice(0, 4).map(stat => {
+																const value = item.player[stat.key as keyof CscStats] as number | undefined;
+																const targetPlayer = tierPlayers.find(p => p.name === similarPlayerTarget);
+																const targetVal = targetPlayer?.[stat.key as keyof CscStats] as number | undefined;
+																const isBetter = value !== undefined && targetVal !== undefined && value >= targetVal;
+																
+																return (
+																	<td key={stat.key} className={`px-3 py-2 text-center text-xs ${isBetter ? 'text-green-400' : 'text-gray-300'}`}>
+																		{value !== undefined ? (typeof value === 'number' && !Number.isInteger(value) ? value.toFixed(2) : value) : '-'}
+																	</td>
+																);
+															})}
+															<td className="px-3 py-2 text-center">
+																{isInList ? (
+																	<span className="text-xs text-gray-500">In List</span>
+																) : (
+																	<button
+																		onClick={() => addToMyDraftList(item.player.name, selectedTier)}
+																		className="px-2 py-1 text-xs bg-blue-600 hover:bg-blue-700 text-white rounded transition-colors"
+																	>
+																		+ Add
+																	</button>
+																)}
+															</td>
+														</tr>
+													);
+												})}
+											</tbody>
+										</table>
+									)}
+								</div>
+							</div>
+						)}
 					</div>
 
 					{/* Right Column: My Draft List for Selected Tier */}
