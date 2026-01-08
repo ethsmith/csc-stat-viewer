@@ -1,5 +1,4 @@
 {
-    "_comment": "DO NOT EDIT: FILE ACTIVE ACTIVE ACTIVE",
     "meta": {
         "version": "PTDL_v2",
         "update_url": null
@@ -36,8 +35,7 @@
             "default_value": "ethsmith/csc-stat-viewer",
             "user_viewable": true,
             "user_editable": true,
-            "rules": "required|string|max:100",
-            "field_type": "text"
+            "rules": "required|string|max:100"
         },
         {
             "name": "GitHub Branch",
@@ -46,8 +44,7 @@
             "default_value": "main",
             "user_viewable": true,
             "user_editable": true,
-            "rules": "required|string|max:50",
-            "field_type": "text"
+            "rules": "required|string|max:50"
         },
         {
             "name": "GitHub Token",
@@ -56,8 +53,7 @@
             "default_value": "",
             "user_viewable": true,
             "user_editable": true,
-            "rules": "nullable|string|max:200",
-            "field_type": "text"
+            "rules": "nullable|string|max:200"
         },
         {
             "name": "Auto Update",
@@ -66,8 +62,7 @@
             "default_value": "true",
             "user_viewable": true,
             "user_editable": true,
-            "rules": "required|string|in:true,false",
-            "field_type": "text"
+            "rules": "required|string|in:true,false"
         },
         {
             "name": "Node Environment",
@@ -76,8 +71,7 @@
             "default_value": "production",
             "user_viewable": true,
             "user_editable": true,
-            "rules": "required|string|in:production,development",
-            "field_type": "text"
+            "rules": "required|string|in:production,development"
         }
     ]
 }
