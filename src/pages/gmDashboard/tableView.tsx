@@ -3,8 +3,8 @@ import { Container } from "../../common/components/container";
 import { Loading } from "../../common/components/loading";
 import { useFetchFranchisesGraph } from "../../dao/franchisesGraphQLDao";
 import { Franchise } from "../../models/franchise-types";
-import { useLocalStorage } from "../../common/hooks/localStorage";
 import { useStatsWithFallback } from "./hooks/useStatsWithFallback";
+import { useGMSettings } from "./hooks/useGMSettings";
 import { Link } from "wouter";
 import { CscStats } from "../../models/csc-stats-types";
 import { GMSidebar } from "./components/GMSidebar";
@@ -12,34 +12,41 @@ import { OffSeasonBanner } from "./components/OffSeasonBanner";
 import { handleExportSettings, createImportHandler, parseColorblindColors, getPlayerTeamDisplay } from "./utils";
 import { useCscPlayersCache } from "../../dao/cscPlayerGraphQLDao";
 import { ALL_STATS } from "./types";
+import { useEcoRatings } from "./hooks/useEcoRatings";
 
 export function TableView() {
 	const { data: franchises = [], isLoading } = useFetchFranchisesGraph();
-	const [selectedFranchise, setSelectedFranchise] = useLocalStorage("franchise", "");
+	
+	// Use shared GM settings
+	const {
+		selectedFranchise, setSelectedFranchise,
+		colorblindMode, setColorblindMode,
+		colorblindColors, setColorblindColors,
+		playerTargets, setPlayerTargets,
+		playerRoles, setPlayerRoles,
+		selectedStats, setSelectedStats,
+		sectionOrder, setSectionOrder,
+		hiddenSections, setHiddenSections,
+		collapsedSections, setCollapsedSections,
+		scoutingNotes, setScoutingNotes,
+		tableViewFilterPresets: savedFilterPresets, setTableViewFilterPresets: setSavedFilterPresets,
+		myDraftList, setMyDraftList,
+	} = useGMSettings();
+
+	// Local state
 	const [selectedTier, setSelectedTier] = React.useState<string>("");
 	const [comparePlayer, setComparePlayer] = React.useState<string>("");
 	const [playerSearchQuery, setPlayerSearchQuery] = React.useState("");
 	const [selectedPlayers, setSelectedPlayers] = React.useState<string[]>([]);
 	const [showPlayerDropdown, setShowPlayerDropdown] = React.useState(false);
-	const [sortColumn, setSortColumn] = React.useState<keyof CscStats | "name" | "team">("rating");
+	const [sortColumn, setSortColumn] = React.useState<keyof CscStats | "name" | "team" | "ecoRating">("rating");
 	const [sortDirection, setSortDirection] = React.useState<"asc" | "desc">("desc");
 	const [teamFilter, setTeamFilter] = React.useState<string>("");
 	const [minGames, setMinGames] = React.useState<number>(0);
 	const [showFilters, setShowFilters] = React.useState(false);
 	const [statFilters, setStatFilters] = React.useState<Array<{ stat: keyof CscStats; operator: "<" | ">" | "<=" | ">=" | "="; value: number }>>([]);
-	const [savedFilterPresets, setSavedFilterPresets] = useLocalStorage("tableViewFilterPresets", "[]");
 	const [showSavePresetModal, setShowSavePresetModal] = React.useState(false);
 	const [newPresetName, setNewPresetName] = React.useState("");
-	const [colorblindMode, setColorblindMode] = useLocalStorage("colorblindMode", "false");
-	const [colorblindColors, setColorblindColors] = useLocalStorage("colorblindColors", JSON.stringify({ good: "#22d3ee", warning: "#fb923c", bad: "#c084fc" }));
-	const [playerTargets, setPlayerTargets] = useLocalStorage("playerTargets", "{}");
-	const [playerRoles, setPlayerRoles] = useLocalStorage("playerRoles", "{}");
-	const [selectedStats, setSelectedStats] = useLocalStorage("selectedTargetStats", '["rating"]');
-	const [sectionOrder, setSectionOrder] = useLocalStorage("dashboardSectionOrder", "[]");
-	const [hiddenSections, setHiddenSections] = useLocalStorage("dashboardHiddenSections", "[]");
-	const [collapsedSections, setCollapsedSections] = useLocalStorage("dashboardCollapsedSections", "[]");
-	const [scoutingNotes, setScoutingNotes] = useLocalStorage("scoutingNotes", "{}");
-	const [myDraftList, setMyDraftList] = useLocalStorage("myDraftListByTier", "{}");
 	const fileInputRef = React.useRef<HTMLInputElement>(null);
 
 	const { 
@@ -50,6 +57,9 @@ export function TableView() {
 	} = useStatsWithFallback();
 
 	const { data: playersData } = useCscPlayersCache(effectiveSeason);
+
+	// Fetch eco ratings from shared hook
+	const { ecoRatingMap } = useEcoRatings();
 
 	const currentFranchise = franchises.find((f: Franchise) => f.prefix === selectedFranchise);
 
@@ -140,6 +150,9 @@ export function TableView() {
 			} else if (sortColumn === "team") {
 				aVal = (a.team || "").toLowerCase();
 				bVal = (b.team || "").toLowerCase();
+			} else if (sortColumn === "ecoRating") {
+				aVal = ecoRatingMap[a.name.toLowerCase()];
+				bVal = ecoRatingMap[b.name.toLowerCase()];
 			} else {
 				aVal = a[sortColumn] as number | undefined;
 				bVal = b[sortColumn] as number | undefined;
@@ -159,9 +172,9 @@ export function TableView() {
 			
 			return sortDirection === "asc" ? comparison : -comparison;
 		});
-	}, [filteredPlayers, sortColumn, sortDirection]);
+	}, [filteredPlayers, sortColumn, sortDirection, ecoRatingMap]);
 
-	const handleSort = (column: keyof CscStats | "name" | "team") => {
+	const handleSort = (column: keyof CscStats | "name" | "team" | "ecoRating") => {
 		if (sortColumn === column) {
 			setSortDirection(prev => prev === "asc" ? "desc" : "asc");
 		} else {
@@ -171,7 +184,7 @@ export function TableView() {
 		}
 	};
 
-	const getSortIndicator = (column: keyof CscStats | "name" | "team") => {
+	const getSortIndicator = (column: keyof CscStats | "name" | "team" | "ecoRating") => {
 		if (sortColumn !== column) return null;
 		return sortDirection === "asc" ? " ▲" : " ▼";
 	};
@@ -189,7 +202,7 @@ export function TableView() {
 		teamFilter: string;
 		minGames: number;
 		statFilters: Array<{ stat: keyof CscStats; operator: "<" | ">" | "<=" | ">=" | "="; value: number }>;
-		sortColumn: keyof CscStats | "name" | "team";
+		sortColumn: keyof CscStats | "name" | "team" | "ecoRating";
 		sortDirection: "asc" | "desc";
 	};
 
@@ -472,11 +485,12 @@ export function TableView() {
 									<div className="flex gap-2">
 										<select
 											value={sortColumn}
-											onChange={(e) => setSortColumn(e.target.value as keyof CscStats | "name" | "team")}
+											onChange={(e) => setSortColumn(e.target.value as keyof CscStats | "name" | "team" | "ecoRating")}
 											className="px-4 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none focus:border-blue-500 min-w-[150px]"
 										>
 											<option value="name">Player Name</option>
 											<option value="team">Team</option>
+											<option value="ecoRating">Eco Rating</option>
 											{ALL_STATS.map(stat => (
 												<option key={stat.key} value={stat.key}>{stat.label}</option>
 											))}
@@ -728,6 +742,13 @@ export function TableView() {
 									>
 										Team{getSortIndicator("team")}
 									</th>
+									<th 
+										className="px-2 py-2 text-center text-xs font-medium text-gray-400 uppercase tracking-wider min-w-[70px] cursor-pointer hover:text-white transition-colors select-none bg-gray-900 sticky top-0 z-20"
+										title="Eco Rating from external sheet"
+										onClick={() => handleSort("ecoRating")}
+									>
+										Eco Rating{getSortIndicator("ecoRating")}
+									</th>
 									{ALL_STATS.map(stat => (
 										<th 
 											key={stat.key} 
@@ -760,6 +781,9 @@ export function TableView() {
 													<td className="px-3 py-2 whitespace-nowrap text-gray-400">
 														{getPlayerTeamDisplay(player.name, player.team, playersData)}
 													</td>
+													<td className="px-2 py-2 text-center whitespace-nowrap text-cyan-400">
+														{ecoRatingMap[player.name.toLowerCase()]?.toFixed(2) || "-"}
+													</td>
 													{ALL_STATS.map(stat => {
 														const value = player[stat.key] as number | undefined;
 														const compareValue = comparePlayerStats?.[stat.key] as number | undefined;
@@ -786,7 +810,7 @@ export function TableView() {
 										})
 								) : (
 									<tr>
-										<td colSpan={ALL_STATS.length + 2} className="px-6 py-8 text-center text-gray-400">
+										<td colSpan={ALL_STATS.length + 3} className="px-6 py-8 text-center text-gray-400">
 											No players found in this tier
 										</td>
 									</tr>

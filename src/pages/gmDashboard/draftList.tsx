@@ -4,14 +4,14 @@ import { useStatsWithFallback } from "./hooks/useStatsWithFallback";
 import { useCscPlayersCache } from "../../dao/cscPlayerGraphQLDao";
 import { CscStats } from "../../models/csc-stats-types";
 import { GMSidebar } from "./components/GMSidebar";
-import { useLocalStorage } from "../../common/hooks/localStorage";
 import { handleExportSettings, createImportHandler, parseColorblindColors, getPlayerTeamDisplay } from "./utils";
+import { useGMSettings } from "./hooks/useGMSettings";
 import { useFetchFranchisesGraph } from "../../dao/franchisesGraphQLDao";
 import { Franchise } from "../../models/franchise-types";
-import { useQuery } from "@tanstack/react-query";
 import { PlayerTypes } from "../../common/utils/player-utils";
 import { PlayerRole, AVAILABLE_STATS } from "./types";
-import { getPlayerTeamDisplay as getTeamDisplay } from "./utils";
+import { useEcoRatings } from "./hooks/useEcoRatings";
+import { useDraftStatus } from "./hooks/useDraftStatus";
 
 // Scouting note types
 type Playstyle = "Aggressive" | "Passive";
@@ -25,111 +25,30 @@ interface ScoutingNote {
 	notes: string;
 }
 
-// Google Sheets configuration
-// https://docs.google.com/spreadsheets/d/1TL1RuDsp1Pnw971Fg4u7UOqOpMo-1e0o_S8Sg3zqHsE/edit?usp=sharing
-const SPREADSHEET_ID = "1A9rmYWDTFENaTAcfY-3SdU41w9Q1uLBGXFK4G1idV3w";
-const SHEET_NAME = "Sheet1";
-
-interface DraftedPlayer {
-	name: string;
-	drafted: boolean;
-}
-
-// Fetch and parse Google Sheets CSV data
-const fetchDraftStatus = async (): Promise<DraftedPlayer[]> => {
-	const encodedSheetName = encodeURIComponent(SHEET_NAME);
-	const url = `https://docs.google.com/spreadsheets/d/${SPREADSHEET_ID}/gviz/tq?tqx=out:csv&sheet=${encodedSheetName}`;
-	
-	const response = await fetch(url);
-	if (!response.ok) {
-		throw new Error("Failed to fetch draft status from Google Sheets");
-	}
-	
-	const csvText = await response.text();
-	const lines = csvText.split("\n");
-	
-	// Parse CSV - first line is headers
-	const players: DraftedPlayer[] = [];
-	
-	// Find column indices from header row
-	const headerLine = lines[0];
-	const headers = parseCSVLine(headerLine).map(h => h.replace(/^"|"$/g, "").trim().toLowerCase());
-	
-	const nameIndex = headers.findIndex(h => h === "name");
-	const draftedIndex = headers.findIndex(h => h === "drafted?" || h === "drafted");
-	
-	if (nameIndex === -1) {
-		console.error("Could not find 'Name' column in spreadsheet. Headers:", headers);
-		return [];
-	}
-	
-	for (let i = 1; i < lines.length; i++) {
-		const line = lines[i].trim();
-		if (!line) continue;
-		
-		// Parse CSV line (handle quoted values)
-		const values = parseCSVLine(line);
-		
-		if (values.length > nameIndex) {
-			const name = values[nameIndex].replace(/^"|"$/g, "").trim();
-			
-			// Get drafted status - default to false if column not found
-			let drafted = false;
-			if (draftedIndex !== -1 && values.length > draftedIndex) {
-				const draftedValue = values[draftedIndex].replace(/^"|"$/g, "").trim().toUpperCase();
-				drafted = draftedValue === "TRUE" || draftedValue === "YES" || draftedValue === "✓" || draftedValue === "X";
-			}
-			
-			if (name) {
-				players.push({ name, drafted });
-			}
-		}
-	}
-	
-	return players;
-};
-
-// Helper to parse CSV line with quoted values
-const parseCSVLine = (line: string): string[] => {
-	const values: string[] = [];
-	let current = "";
-	let inQuotes = false;
-	
-	for (let i = 0; i < line.length; i++) {
-		const char = line[i];
-		
-		if (char === '"') {
-			inQuotes = !inQuotes;
-		} else if (char === "," && !inQuotes) {
-			values.push(current);
-			current = "";
-		} else {
-			current += char;
-		}
-	}
-	values.push(current);
-	
-	return values;
-};
-
 export function DraftList() {
 	const { data: franchises = [], isLoading: isLoadingFranchises } = useFetchFranchisesGraph();
-	const [selectedFranchise, setSelectedFranchise] = useLocalStorage("franchise", "");
+	
+	// Use shared GM settings
+	const {
+		selectedFranchise, setSelectedFranchise,
+		colorblindMode, setColorblindMode,
+		colorblindColors, setColorblindColors,
+		playerTargets, setPlayerTargets,
+		playerRoles, setPlayerRoles,
+		selectedStats, setSelectedStats,
+		sectionOrder, setSectionOrder,
+		hiddenSections, setHiddenSections,
+		collapsedSections, setCollapsedSections,
+		scoutingNotes, setScoutingNotes,
+		tableViewFilterPresets, setTableViewFilterPresets,
+		myDraftList, setMyDraftList,
+	} = useGMSettings();
+
+	// Local state
 	const [selectedTier, setSelectedTier] = React.useState<string>("");
 	const [searchQuery, setSearchQuery] = React.useState("");
 	const [showDraftedOnly, setShowDraftedOnly] = React.useState<"all" | "available" | "drafted">("all");
 	const [autoRefresh, setAutoRefresh] = React.useState(true);
-	const [colorblindMode, setColorblindMode] = useLocalStorage("colorblindMode", "false");
-	const [colorblindColors, setColorblindColors] = useLocalStorage("colorblindColors", JSON.stringify({ good: "#22d3ee", warning: "#fb923c", bad: "#c084fc" }));
-	const [playerTargets, setPlayerTargets] = useLocalStorage("playerTargets", "{}");
-	const [playerRoles, setPlayerRoles] = useLocalStorage("playerRoles", "{}");
-	const [selectedStats, setSelectedStats] = useLocalStorage("selectedTargetStats", '["rating"]');
-	const [sectionOrder, setSectionOrder] = useLocalStorage("dashboardSectionOrder", "[]");
-	const [hiddenSections, setHiddenSections] = useLocalStorage("dashboardHiddenSections", "[]");
-	const [collapsedSections, setCollapsedSections] = useLocalStorage("dashboardCollapsedSections", "[]");
-	const [scoutingNotes, setScoutingNotes] = useLocalStorage("scoutingNotes", "{}");
-	const [tableViewFilterPresets, setTableViewFilterPresets] = useLocalStorage("tableViewFilterPresets", "[]");
-	const [myDraftList, setMyDraftList] = useLocalStorage("myDraftListByTier", "{}");
 	const [selectedPreset, setSelectedPreset] = React.useState<string>("");
 	const [statsPopupPlayer, setStatsPopupPlayer] = React.useState<string | null>(null);
 	const [similarPlayerTarget, setSimilarPlayerTarget] = React.useState<string | null>(null);
@@ -265,27 +184,16 @@ export function DraftList() {
 
 	const { data: playersData } = useCscPlayersCache(effectiveSeason);
 
-	// Fetch draft status from Google Sheets
+	// Fetch draft status from shared hook
 	const { 
-		data: draftStatus = [], 
+		draftStatusMap,
 		isLoading: isLoadingDraftStatus,
 		refetch: refetchDraftStatus,
 		dataUpdatedAt
-	} = useQuery({
-		queryKey: ["draftStatus"],
-		queryFn: fetchDraftStatus,
-		refetchInterval: autoRefresh ? 2000 : false, // Refresh every 3 seconds if auto-refresh is on
-		staleTime: 5000,
-	});
+	} = useDraftStatus({ autoRefresh, refetchInterval: 2000 });
 
-	// Create a map for quick lookup of draft status
-	const draftStatusMap = React.useMemo(() => {
-		const map: Record<string, boolean> = {};
-		draftStatus.forEach(player => {
-			map[player.name.toLowerCase()] = player.drafted;
-		});
-		return map;
-	}, [draftStatus]);
+	// Fetch eco ratings from shared hook
+	const { ecoRatingMap } = useEcoRatings();
 
 	const currentFranchise = franchises.find((f: Franchise) => f.prefix === selectedFranchise);
 
@@ -733,6 +641,7 @@ export function DraftList() {
 										<th className="px-3 py-2 text-left text-xs font-semibold text-gray-300">Status</th>
 										<th className="px-3 py-2 text-left text-xs font-semibold text-gray-300">Player</th>
 										<th className="px-3 py-2 text-center text-xs font-semibold text-gray-300">Rating</th>
+										<th className="px-3 py-2 text-center text-xs font-semibold text-gray-300">Eco Rating</th>
 										<th className="px-3 py-2 text-center text-xs font-semibold text-gray-300">Stats</th>
 										<th className="px-3 py-2 text-center text-xs font-semibold text-gray-300">Similar</th>
 										<th className="px-3 py-2 text-center text-xs font-semibold text-gray-300">Action</th>
@@ -741,7 +650,7 @@ export function DraftList() {
 								<tbody className="divide-y divide-gray-700">
 									{filteredPlayers.length === 0 ? (
 										<tr>
-											<td colSpan={6} className="px-4 py-8 text-center text-gray-400">
+											<td colSpan={7} className="px-4 py-8 text-center text-gray-400">
 												No players found
 											</td>
 										</tr>
@@ -784,6 +693,9 @@ export function DraftList() {
 													</td>
 													<td className="px-3 py-2 text-center text-sm text-gray-300">
 														{player.rating?.toFixed(2) || "-"}
+													</td>
+													<td className="px-3 py-2 text-center text-sm text-cyan-400">
+														{ecoRatingMap[player.name.toLowerCase()]?.toFixed(2) || "-"}
 													</td>
 													<td className="px-3 py-2 text-center">
 														<button
@@ -1010,11 +922,11 @@ export function DraftList() {
 																<span className="ml-2 text-xs text-cyan-400" title="Has scouting notes">📋</span>
 															)}
 														</div>
-														{playerStats && (
-															<div className="text-xs text-gray-500">
-																Rating: {playerStats.rating?.toFixed(2)} | ADR: {playerStats.adr?.toFixed(1)}
-															</div>
-														)}
+														<div className="text-xs text-gray-500">
+															{playerStats && <>Rating: {playerStats.rating?.toFixed(2)} | </>}
+															{ecoRatingMap[playerName.toLowerCase()] !== undefined && <>Eco: {ecoRatingMap[playerName.toLowerCase()]?.toFixed(2)}{playerStats && " | "}</>}
+															{playerStats && <>ADR: {playerStats.adr?.toFixed(1)}</>}
+														</div>
 													</div>
 
 													{/* Status */}
