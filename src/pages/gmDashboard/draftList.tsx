@@ -58,8 +58,8 @@ export function DraftList() {
 		name: string;
 		teamFilter: string;
 		minGames: number;
-		statFilters: Array<{ stat: keyof CscStats; operator: "<" | ">" | "<=" | ">=" | "="; value: number }>;
-		sortColumn: keyof CscStats | "name" | "team";
+		statFilters: Array<{ stat: keyof CscStats | "ecoRating"; operator: "<" | ">" | "<=" | ">=" | "="; value: number }>;
+		sortColumn: keyof CscStats | "name" | "team" | "ecoRating";
 		sortDirection: "asc" | "desc";
 	};
 
@@ -251,7 +251,12 @@ export function DraftList() {
 			// Stat filters
 			activePreset.statFilters.forEach(filter => {
 				players = players.filter(p => {
-					const val = p[filter.stat] as number | undefined;
+					let val: number | undefined;
+					if (filter.stat === "ecoRating") {
+						val = ecoRatingMap[p.name.toLowerCase()];
+					} else {
+						val = p[filter.stat] as number | undefined;
+					}
 					if (val === undefined) return false;
 					switch (filter.operator) {
 						case "<": return val < filter.value;
@@ -291,6 +296,9 @@ export function DraftList() {
 				} else if (activePreset.sortColumn === "team") {
 					aVal = (a.team || "").toLowerCase();
 					bVal = (b.team || "").toLowerCase();
+				} else if (activePreset.sortColumn === "ecoRating") {
+					aVal = ecoRatingMap[a.name.toLowerCase()];
+					bVal = ecoRatingMap[b.name.toLowerCase()];
 				} else {
 					aVal = a[activePreset.sortColumn] as number | undefined;
 					bVal = b[activePreset.sortColumn] as number | undefined;
@@ -329,7 +337,7 @@ export function DraftList() {
 		}
 		
 		return sorted;
-	}, [tierPlayers, searchQuery, showDraftedOnly, draftStatusMap, playerTypeMap, activePreset, playersData]);
+	}, [tierPlayers, searchQuery, showDraftedOnly, draftStatusMap, playerTypeMap, activePreset, playersData, ecoRatingMap]);
 
 	// Find similar players based on tracked stats
 	const similarPlayers = React.useMemo(() => {

@@ -44,7 +44,7 @@ export function TableView() {
 	const [teamFilter, setTeamFilter] = React.useState<string>("");
 	const [minGames, setMinGames] = React.useState<number>(0);
 	const [showFilters, setShowFilters] = React.useState(false);
-	const [statFilters, setStatFilters] = React.useState<Array<{ stat: keyof CscStats; operator: "<" | ">" | "<=" | ">=" | "="; value: number }>>([]);
+	const [statFilters, setStatFilters] = React.useState<Array<{ stat: keyof CscStats | "ecoRating"; operator: "<" | ">" | "<=" | ">=" | "="; value: number }>>([]);
 	const [showSavePresetModal, setShowSavePresetModal] = React.useState(false);
 	const [newPresetName, setNewPresetName] = React.useState("");
 	const fileInputRef = React.useRef<HTMLInputElement>(null);
@@ -123,7 +123,12 @@ export function TableView() {
 		// Apply stat filters
 		statFilters.forEach(filter => {
 			players = players.filter(p => {
-				const val = p[filter.stat] as number | undefined;
+				let val: number | undefined;
+				if (filter.stat === "ecoRating") {
+					val = ecoRatingMap[p.name.toLowerCase()];
+				} else {
+					val = p[filter.stat] as number | undefined;
+				}
 				if (val === undefined) return false;
 				switch (filter.operator) {
 					case "<": return val < filter.value;
@@ -137,7 +142,7 @@ export function TableView() {
 		});
 		
 		return players;
-	}, [tierPlayers, selectedPlayers, teamFilter, minGames, statFilters]);
+	}, [tierPlayers, selectedPlayers, teamFilter, minGames, statFilters, ecoRatingMap]);
 
 	const sortedPlayers = React.useMemo(() => {
 		return [...filteredPlayers].sort((a, b) => {
@@ -201,7 +206,7 @@ export function TableView() {
 		name: string;
 		teamFilter: string;
 		minGames: number;
-		statFilters: Array<{ stat: keyof CscStats; operator: "<" | ">" | "<=" | ">=" | "="; value: number }>;
+		statFilters: Array<{ stat: keyof CscStats | "ecoRating"; operator: "<" | ">" | "<=" | ">=" | "="; value: number }>;
 		sortColumn: keyof CscStats | "name" | "team" | "ecoRating";
 		sortDirection: "asc" | "desc";
 	};
@@ -620,11 +625,12 @@ export function TableView() {
 													value={filter.stat}
 													onChange={(e) => {
 														const newFilters = [...statFilters];
-														newFilters[index] = { ...filter, stat: e.target.value as keyof CscStats };
+														newFilters[index] = { ...filter, stat: e.target.value as keyof CscStats | "ecoRating" };
 														setStatFilters(newFilters);
 													}}
 													className="px-3 py-1.5 bg-gray-700 border border-gray-600 rounded-lg text-white text-sm focus:outline-none focus:border-blue-500"
 												>
+													<option value="ecoRating">Eco Rating</option>
 													{ALL_STATS.map(stat => (
 														<option key={stat.key} value={stat.key}>{stat.label}</option>
 													))}
