@@ -39,7 +39,7 @@ export function TableView() {
 	const [playerSearchQuery, setPlayerSearchQuery] = React.useState("");
 	const [selectedPlayers, setSelectedPlayers] = React.useState<string[]>([]);
 	const [showPlayerDropdown, setShowPlayerDropdown] = React.useState(false);
-	const [sortColumn, setSortColumn] = React.useState<keyof CscStats | "name" | "team" | "ecoRating">("rating");
+	const [sortColumn, setSortColumn] = React.useState<keyof CscStats | "name" | "team" | "ecoRating" | "ecoRatingDiff">("rating");
 	const [sortDirection, setSortDirection] = React.useState<"asc" | "desc">("desc");
 	const [teamFilter, setTeamFilter] = React.useState<string>("");
 	const [minGames, setMinGames] = React.useState<number>(0);
@@ -158,6 +158,11 @@ export function TableView() {
 			} else if (sortColumn === "ecoRating") {
 				aVal = ecoRatingMap[a.name.toLowerCase()];
 				bVal = ecoRatingMap[b.name.toLowerCase()];
+			} else if (sortColumn === "ecoRatingDiff") {
+				const aEco = ecoRatingMap[a.name.toLowerCase()];
+				const bEco = ecoRatingMap[b.name.toLowerCase()];
+				aVal = (aEco !== undefined && a.rating) ? ((aEco - a.rating) / a.rating) * 100 : undefined;
+				bVal = (bEco !== undefined && b.rating) ? ((bEco - b.rating) / b.rating) * 100 : undefined;
 			} else {
 				aVal = a[sortColumn] as number | undefined;
 				bVal = b[sortColumn] as number | undefined;
@@ -179,7 +184,7 @@ export function TableView() {
 		});
 	}, [filteredPlayers, sortColumn, sortDirection, ecoRatingMap]);
 
-	const handleSort = (column: keyof CscStats | "name" | "team" | "ecoRating") => {
+	const handleSort = (column: keyof CscStats | "name" | "team" | "ecoRating" | "ecoRatingDiff") => {
 		if (sortColumn === column) {
 			setSortDirection(prev => prev === "asc" ? "desc" : "asc");
 		} else {
@@ -189,7 +194,7 @@ export function TableView() {
 		}
 	};
 
-	const getSortIndicator = (column: keyof CscStats | "name" | "team" | "ecoRating") => {
+	const getSortIndicator = (column: keyof CscStats | "name" | "team" | "ecoRating" | "ecoRatingDiff") => {
 		if (sortColumn !== column) return null;
 		return sortDirection === "asc" ? " ▲" : " ▼";
 	};
@@ -207,7 +212,7 @@ export function TableView() {
 		teamFilter: string;
 		minGames: number;
 		statFilters: Array<{ stat: keyof CscStats | "ecoRating"; operator: "<" | ">" | "<=" | ">=" | "="; value: number }>;
-		sortColumn: keyof CscStats | "name" | "team" | "ecoRating";
+		sortColumn: keyof CscStats | "name" | "team" | "ecoRating" | "ecoRatingDiff";
 		sortDirection: "asc" | "desc";
 	};
 
@@ -490,12 +495,13 @@ export function TableView() {
 									<div className="flex gap-2">
 										<select
 											value={sortColumn}
-											onChange={(e) => setSortColumn(e.target.value as keyof CscStats | "name" | "team" | "ecoRating")}
+											onChange={(e) => setSortColumn(e.target.value as keyof CscStats | "name" | "team" | "ecoRating" | "ecoRatingDiff")}
 											className="px-4 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none focus:border-blue-500 min-w-[150px]"
 										>
 											<option value="name">Player Name</option>
 											<option value="team">Team</option>
 											<option value="ecoRating">Eco Rating</option>
+											<option value="ecoRatingDiff">Eco Rating % Diff</option>
 											{ALL_STATS.map(stat => (
 												<option key={stat.key} value={stat.key}>{stat.label}</option>
 											))}
@@ -788,7 +794,22 @@ export function TableView() {
 														{getPlayerTeamDisplay(player.name, player.team, playersData)}
 													</td>
 													<td className="px-2 py-2 text-center whitespace-nowrap text-cyan-400">
-														{ecoRatingMap[player.name.toLowerCase()]?.toFixed(2) || "-"}
+														{(() => {
+															const ecoRating = ecoRatingMap[player.name.toLowerCase()];
+															const rating = player.rating;
+															if (ecoRating === undefined) return "-";
+															if (rating === undefined || rating === 0) return ecoRating.toFixed(2);
+															const diff = ((ecoRating - rating) / rating) * 100;
+															const sign = diff >= 0 ? "+" : "";
+															return (
+																<span>
+																	{ecoRating.toFixed(2)}{" "}
+																	<span className={diff >= 0 ? "text-green-400" : "text-red-400"} style={{ fontSize: "0.75em" }}>
+																		({sign}{diff.toFixed(1)}%)
+																	</span>
+																</span>
+															);
+														})()}
 													</td>
 													{ALL_STATS.map(stat => {
 														const value = player[stat.key] as number | undefined;
