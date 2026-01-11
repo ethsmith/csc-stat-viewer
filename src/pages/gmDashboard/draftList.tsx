@@ -403,16 +403,92 @@ export function DraftList() {
 	}, [tierPlayers, draftStatusMap]);
 
 	// Sort draft list by availability: Available first, Unknown second, Drafted last
-	// Preserve user's manual ordering within each availability group
+	// When a preset is active, apply preset filtering/sorting first, then group by availability
 	const sortedDraftList = React.useMemo(() => {
 		const tierList = parsedMyDraftList[selectedTier] || [];
+		
+		// Get player stats for filtering/sorting
+		let playersWithStats = tierList.map(playerName => {
+			const stats = tierPlayers.find(p => p.name === playerName);
+			return { playerName, stats };
+		});
+		
+		// Apply preset filters and sorting if one is selected
+		if (activePreset) {
+			// Team filter
+			if (activePreset.teamFilter) {
+				playersWithStats = playersWithStats.filter(({ playerName, stats }) => 
+					stats && getPlayerTeamDisplay(playerName, stats.team, playersData) === activePreset.teamFilter
+				);
+			}
+			// Min games filter
+			if (activePreset.minGames > 0) {
+				playersWithStats = playersWithStats.filter(({ stats }) => 
+					stats && (stats.gameCount || 0) >= activePreset.minGames
+				);
+			}
+			// Stat filters
+			activePreset.statFilters.forEach(filter => {
+				playersWithStats = playersWithStats.filter(({ playerName, stats }) => {
+					if (!stats) return false;
+					let val: number | undefined;
+					if (filter.stat === "ecoRating") {
+						val = ecoRatingMap[playerName.toLowerCase()];
+					} else {
+						val = stats[filter.stat] as number | undefined;
+					}
+					if (val === undefined) return false;
+					switch (filter.operator) {
+						case "<": return val < filter.value;
+						case ">": return val > filter.value;
+						case "<=": return val <= filter.value;
+						case ">=": return val >= filter.value;
+						case "=": return val === filter.value;
+						default: return true;
+					}
+				});
+			});
+			
+			// Sort by preset's sort column
+			playersWithStats.sort((a, b) => {
+				let aVal: string | number | undefined;
+				let bVal: string | number | undefined;
+				
+				if (activePreset.sortColumn === "name") {
+					aVal = a.playerName.toLowerCase();
+					bVal = b.playerName.toLowerCase();
+				} else if (activePreset.sortColumn === "team") {
+					aVal = (a.stats?.team || "").toLowerCase();
+					bVal = (b.stats?.team || "").toLowerCase();
+				} else if (activePreset.sortColumn === "ecoRating") {
+					aVal = ecoRatingMap[a.playerName.toLowerCase()];
+					bVal = ecoRatingMap[b.playerName.toLowerCase()];
+				} else {
+					aVal = a.stats?.[activePreset.sortColumn] as number | undefined;
+					bVal = b.stats?.[activePreset.sortColumn] as number | undefined;
+				}
+				
+				if (aVal === undefined && bVal === undefined) return 0;
+				if (aVal === undefined) return 1;
+				if (bVal === undefined) return -1;
+				
+				let comparison = 0;
+				if (typeof aVal === "string" && typeof bVal === "string") {
+					comparison = aVal.localeCompare(bVal);
+				} else {
+					comparison = (aVal as number) - (bVal as number);
+				}
+				
+				return activePreset.sortDirection === "asc" ? comparison : -comparison;
+			});
+		}
 		
 		// Group players by availability status while preserving order within each group
 		const available: string[] = [];
 		const unknown: string[] = [];
 		const drafted: string[] = [];
 		
-		tierList.forEach(playerName => {
+		playersWithStats.forEach(({ playerName }) => {
 			const status = draftStatusMap[playerName.toLowerCase()];
 			if (status === false) {
 				available.push(playerName);
@@ -424,7 +500,7 @@ export function DraftList() {
 		});
 		
 		return [...available, ...unknown, ...drafted];
-	}, [parsedMyDraftList, selectedTier, draftStatusMap]);
+	}, [parsedMyDraftList, selectedTier, draftStatusMap, activePreset, tierPlayers, playersData, ecoRatingMap]);
 
 	// Helper to check if player can move up within their availability group
 	const canMoveUp = (playerName: string, index: number): boolean => {
