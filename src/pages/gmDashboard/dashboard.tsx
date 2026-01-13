@@ -6,6 +6,7 @@ import { Franchise } from "../../models/franchise-types";
 import { useLocalStorage } from "../../common/hooks/localStorage";
 import { useStatsWithFallback } from "./hooks/useStatsWithFallback";
 import { useCscPlayersCache } from "../../dao/cscPlayerGraphQLDao";
+import { useDataContext } from "../../DataContext";
 import { Link } from "wouter";
 import { CscStats } from "../../models/csc-stats-types";
 import { GMSidebar } from "./components/GMSidebar";
@@ -16,6 +17,7 @@ import { InsightsPanel, Insight } from "./components/InsightsPanel";
 import { PlayerStatCell } from "./components/PlayerStatCell";
 import { TeamSummary } from "./components/TeamSummary";
 import { RoleFitScore } from "./components/RoleFitScore";
+import { PlaystyleAnalysis } from "./components/PlaystyleAnalysis";
 import { DraggableSection, SectionId, DEFAULT_SECTION_ORDER, SECTION_LABELS } from "./components/DraggableSection";
 import { PlayerComparisonModal, StatComparisonBadge, ComparisonPlayerData } from "./components/PlayerComparisonModal";
 import { PlayerTargets, PlayerRoles } from "./types";
@@ -33,6 +35,7 @@ import {
 import { generateInsights } from "./insightsEngine";
 
 export function Dashboard() {
+	const { gmRTLCsv } = useDataContext();
 	const { data: franchises = [], isLoading } = useFetchFranchisesGraph();
 	const [selectedFranchise, setSelectedFranchise] = useLocalStorage("franchise", "");
 	const [searchQuery, setSearchQuery] = React.useState("");
@@ -161,15 +164,51 @@ export function Dashboard() {
 	const { data: allPlayers = [] } = useCscPlayersCache(season, { enabled: season > 0 });
 
 	// Create a map of player name to MMR for quick lookup
+	// Prioritize RTL CSV data (gmRTLCsv) over API data when available
 	const playerMmrMap = React.useMemo(() => {
 		const map: Record<string, number> = {};
+		
+		// First, populate from API data
 		allPlayers.forEach(player => {
 			if (player.mmr) {
 				map[player.name] = player.mmr;
 			}
 		});
+		
+		// Override with RTL CSV data if available (more up-to-date)
+		if (gmRTLCsv && gmRTLCsv.length > 0) {
+			// Build a map of CSC ID to player name for lookup
+			const cscIdToName: Record<string, string> = {};
+			allPlayers.forEach(player => {
+				if (player.id) {
+					cscIdToName[player.id] = player.name;
+				}
+			});
+			
+			gmRTLCsv.forEach(row => {
+				const mmrValue = row["MMR"] || row["mmr"];
+				if (!mmrValue) return;
+				
+				const mmr = parseInt(mmrValue, 10);
+				if (isNaN(mmr)) return;
+				
+				// Try to find player by name first
+				const playerName = row["Name"] || row["Player Name"] || row["name"];
+				if (playerName) {
+					map[playerName] = mmr;
+					return;
+				}
+				
+				// Fall back to matching by CSC ID
+				const cscId = row["CSC ID"] || row["cscId"] || row["Id"];
+				if (cscId && cscIdToName[cscId]) {
+					map[cscIdToName[cscId]] = mmr;
+				}
+			});
+		}
+		
 		return map;
-	}, [allPlayers]);
+	}, [allPlayers, gmRTLCsv]);
 
 	const filteredFranchises = React.useMemo(() => {
 		if (!searchQuery) return franchises;
@@ -322,6 +361,51 @@ export function Dashboard() {
 		return Object.values(selectedForSigning);
 	}, [selectedForSigning]);
 
+	// Create effective team players that swaps rostered players with their signed replacements
+	const effectiveTeamPlayers = React.useMemo(() => {
+		if (!selectedTeam?.players) return [];
+		
+		return selectedTeam.players.map(player => {
+			const signedPlayerName = selectedForSigning[player.name];
+			if (signedPlayerName) {
+				// Find the signed player's data
+				const signedPlayerData = comparisonData[player.name]?.find(c => c.stats.name === signedPlayerName);
+				if (signedPlayerData) {
+					// Return a player object with the signed player's info but keeping original slot reference
+					return {
+						...player,
+						name: signedPlayerData.stats.name,
+						mmr: signedPlayerData.mmr || 0,
+						// Keep track of original player for reference
+						_originalPlayerName: player.name,
+						_isSignedPlayer: true
+					};
+				}
+			}
+			return { ...player, _originalPlayerName: player.name, _isSignedPlayer: false };
+		});
+	}, [selectedTeam?.players, selectedForSigning, comparisonData]);
+
+	// Helper to get the original player name for a slot (for clearing signed players)
+	const getOriginalPlayerName = (playerName: string): string => {
+		const effectivePlayer = effectiveTeamPlayers.find(p => p.name === playerName);
+		return (effectivePlayer as any)?._originalPlayerName || playerName;
+	};
+
+	// Helper to check if a player slot has a signed player
+	const isSlotSigned = (originalPlayerName: string): boolean => {
+		return !!selectedForSigning[originalPlayerName];
+	};
+
+	// Clear a signed player from a slot
+	const clearSignedPlayer = (originalPlayerName: string) => {
+		setSelectedForSigning(prev => {
+			const newData = { ...prev };
+			delete newData[originalPlayerName];
+			return newData;
+		});
+	};
+
 	// Calculate MMR delta from all selected signings
 	const selectedSigningsMmrDelta = React.useMemo(() => {
 		let delta = 0;
@@ -330,11 +414,12 @@ export function Dashboard() {
 			const compPlayer = comparisons.find(c => c.stats.name === comparisonName);
 			const rosteredPlayer = selectedTeam?.players?.find(p => p.name === rosteredName);
 			if (compPlayer && rosteredPlayer) {
-				delta += (compPlayer.mmr || 0) - (rosteredPlayer.mmr || 0);
+				const rosteredMmr = playerMmrMap[rosteredName] || rosteredPlayer.mmr || 0;
+				delta += (compPlayer.mmr || 0) - rosteredMmr;
 			}
 		});
 		return delta;
-	}, [selectedForSigning, comparisonData, selectedTeam]);
+	}, [selectedForSigning, comparisonData, selectedTeam, playerMmrMap]);
 
 	const parsedPlayerTargets: PlayerTargets = React.useMemo(() => {
 		try {
@@ -361,12 +446,12 @@ export function Dashboard() {
 		}
 	}, [playerRoles]);
 
-	// Generate insights for the selected team
+	// Generate insights for the selected team (uses effective players with signed replacements)
 	const insights: Insight[] = React.useMemo(() => {
-		if (!selectedTeam || !selectedTeam.players || !statsCache) return [];
+		if (!selectedTeam || effectiveTeamPlayers.length === 0 || !statsCache) return [];
 
 		const teamData = {
-			players: selectedTeam.players.map(player => {
+			players: effectiveTeamPlayers.map(player => {
 				const playerStats = getPlayerStats(player.name, selectedTeam.tier.name);
 				const target: Record<string, number> = {};
 				
@@ -394,7 +479,7 @@ export function Dashboard() {
 		};
 
 		return generateInsights(teamData, parsedPlayerTargets, parsedPlayerRoles, parsedSelectedStats);
-	}, [selectedTeam, statsCache, parsedPlayerTargets, parsedPlayerRoles, parsedSelectedStats]);
+	}, [selectedTeam, effectiveTeamPlayers, statsCache, parsedPlayerTargets, parsedPlayerRoles, parsedSelectedStats]);
 
 	if (isLoading || isLoadingStats) {
 		return (
@@ -592,7 +677,7 @@ export function Dashboard() {
 													<div className="mb-6">
 														<InsightsPanel 
 															insights={insights}
-															players={selectedTeam.players?.map(p => p.name) || []}
+															players={effectiveTeamPlayers.map(p => p.name)}
 															onHide={() => hideSection("insights")}
 															isExpanded={isSectionExpanded("insights")}
 															onToggleExpand={(expanded) => toggleSectionCollapse("insights", expanded)}
@@ -602,10 +687,10 @@ export function Dashboard() {
 											case "teamSummary":
 												return (
 													<TeamSummary
-														players={selectedTeam.players?.map(player => ({
+														players={effectiveTeamPlayers.map(player => ({
 															name: player.name,
 															stats: getPlayerStats(player.name, selectedTeam.tier.name)
-														})) || []}
+														}))}
 														tierAverages={tierAverages}
 														playerTargets={parsedPlayerTargets}
 														playerRoles={parsedPlayerRoles}
@@ -619,15 +704,32 @@ export function Dashboard() {
 											case "roleFitScore":
 												return (
 													<RoleFitScore
-														players={selectedTeam.players?.map(player => ({
+														players={effectiveTeamPlayers.map(player => ({
 															name: player.name,
 															stats: getPlayerStats(player.name, selectedTeam.tier.name)
-														})) || []}
+														}))}
 														playerRoles={parsedPlayerRoles}
 														tierAverages={tierAverages}
 														onHide={() => hideSection("roleFitScore")}
 														isExpanded={isSectionExpanded("roleFitScore")}
 														onToggleExpand={(expanded) => toggleSectionCollapse("roleFitScore", expanded)}
+														colorblindMode={colorblindMode === "true"}
+														customColors={parseColorblindColors(colorblindColors)}
+													/>
+												);
+											case "playstyleAnalysis":
+												return (
+													<PlaystyleAnalysis
+														players={effectiveTeamPlayers.map(player => ({
+															name: player.name,
+															stats: getPlayerStats(player.name, selectedTeam.tier.name)
+														}))}
+														playerTargets={parsedPlayerTargets}
+														selectedStats={parsedSelectedStats}
+														tierAverages={tierAverages}
+														onHide={() => hideSection("playstyleAnalysis")}
+														isExpanded={isSectionExpanded("playstyleAnalysis")}
+														onToggleExpand={(expanded) => toggleSectionCollapse("playstyleAnalysis", expanded)}
 														colorblindMode={colorblindMode === "true"}
 														customColors={parseColorblindColors(colorblindColors)}
 													/>
@@ -669,22 +771,40 @@ export function Dashboard() {
 																	</tr>
 																</thead>
 																<tbody className="divide-y divide-gray-700">
-																	{selectedTeam.players && selectedTeam.players.length > 0 ? (
-																		selectedTeam.players.map((player, idx) => {
+																	{effectiveTeamPlayers.length > 0 ? (
+																		effectiveTeamPlayers.map((player, idx) => {
+																			const originalPlayerName = (player as any)._originalPlayerName || player.name;
+																			const isSignedPlayer = (player as any)._isSignedPlayer || false;
 																			const playerStats = getPlayerStats(player.name, selectedTeam.tier.name);
-																			const comparisonPlayer = comparisonData[player.name];
+																			const comparisonPlayer = comparisonData[originalPlayerName];
 																			return (
-																				<React.Fragment key={player.steam64Id || idx}>
-																					<tr className="hover:bg-gray-750">
+																				<React.Fragment key={originalPlayerName + idx}>
+																					<tr className={`hover:bg-gray-750 ${isSignedPlayer ? 'bg-green-900/20 border-l-4 border-green-500' : ''}`}>
 																						<td className="px-6 py-4 whitespace-nowrap">
-																							<Link href={`/players/${player.name}`}>
-																								<div className="text-sm font-medium text-white hover:text-blue-400 cursor-pointer transition-colors">
-																									{player.name}
-																								</div>
-																							</Link>
+																							<div className="flex items-center gap-2">
+																								{isSignedPlayer && (
+																									<button
+																										onClick={() => clearSignedPlayer(originalPlayerName)}
+																										className="text-red-400 hover:text-red-300 transition-colors"
+																										title={`Remove ${player.name} and restore ${originalPlayerName}`}
+																									>
+																										<svg className="h-4 w-4" fill="currentColor" viewBox="0 0 20 20">
+																											<path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
+																										</svg>
+																									</button>
+																								)}
+																								<Link href={`/players/${player.name}`}>
+																									<div className={`text-sm font-medium ${isSignedPlayer ? 'text-green-300 hover:text-green-200' : 'text-white hover:text-blue-400'} cursor-pointer transition-colors`}>
+																										{player.name}
+																									</div>
+																								</Link>
+																								{isSignedPlayer && (
+																									<span className="text-xs text-gray-500">(replacing {originalPlayerName})</span>
+																								)}
+																							</div>
 																						</td>
 																						<td className="px-6 py-4 whitespace-nowrap">
-																							<div className="text-sm text-gray-300">{player.mmr}</div>
+																							<div className={`text-sm ${isSignedPlayer ? 'text-green-300' : 'text-gray-300'}`}>{playerMmrMap[player.name] || player.mmr || 0}</div>
 																						</td>
 																						{parsedSelectedStats.map(statKey => {
 																							const playerStat = getPlayerStats(player.name, selectedTeam.tier.name);
@@ -723,8 +843,9 @@ export function Dashboard() {
 																						</td>
 																						<td className="px-4 py-4 whitespace-nowrap">
 																							<button
-																								onClick={() => handleOpenComparisonModal(player.name)}
-																								className={`px-2 py-1 text-xs text-white rounded transition-colors flex items-center gap-1 ${comparisonPlayer && comparisonPlayer.length > 0 ? 'bg-gray-600 hover:bg-gray-500' : 'bg-purple-600 hover:bg-purple-500'}`}
+																								onClick={() => handleOpenComparisonModal(originalPlayerName)}
+																								disabled={isSignedPlayer}
+																								className={`px-2 py-1 text-xs text-white rounded transition-colors flex items-center gap-1 ${isSignedPlayer ? 'bg-gray-700 text-gray-500 cursor-not-allowed' : comparisonPlayer && comparisonPlayer.length > 0 ? 'bg-gray-600 hover:bg-gray-500' : 'bg-purple-600 hover:bg-purple-500'}`}
 																								title={comparisonPlayer && comparisonPlayer.length > 0 ? "Add another comparison" : "Compare with another player"}
 																							>
 																								{comparisonPlayer && comparisonPlayer.length > 0 ? (
@@ -745,14 +866,15 @@ export function Dashboard() {
 																							</button>
 																						</td>
 																					</tr>
-																					{comparisonPlayer && comparisonPlayer.length > 0 && comparisonPlayer.map((compPlayer, compIdx) => {
+																					{!isSignedPlayer && comparisonPlayer && comparisonPlayer.length > 0 && comparisonPlayer.map((compPlayer, compIdx) => {
 																						const compStats = compPlayer.stats;
 																						const compMmr = compPlayer.mmr;
-																						const currentMmr = player.mmr || 0;
-																						const teamTotalMmr = selectedTeam.players?.reduce((acc, p) => acc + (p.mmr || 0), 0) || 0;
+																						const originalPlayer = selectedTeam.players?.find(p => p.name === originalPlayerName);
+																						const currentMmr = playerMmrMap[originalPlayerName] || originalPlayer?.mmr || 0;
+																						const teamTotalMmr = selectedTeam.players?.reduce((acc, p) => acc + (playerMmrMap[p.name] || p.mmr || 0), 0) || 0;
 																						
 																						// Check if this player is selected for signing
-																						const isSelectedForSigning = selectedForSigning[player.name] === compStats.name;
+																						const isSelectedForSigning = selectedForSigning[originalPlayerName] === compStats.name;
 																						// Check if this player is already selected in another pool
 																						const isSelectedElsewhere = !isSelectedForSigning && allSelectedForSigning.includes(compStats.name);
 																						
@@ -762,7 +884,7 @@ export function Dashboard() {
 																						let mmrDeltaForThisRow = selectedSigningsMmrDelta;
 																						if (!isSelectedForSigning) {
 																							// Remove current rostered player's selected signing from delta (if any)
-																							const currentSelection = selectedForSigning[player.name];
+																							const currentSelection = selectedForSigning[originalPlayerName];
 																							if (currentSelection) {
 																								const currentSelectedComp = comparisonPlayer.find(c => c.stats.name === currentSelection);
 																								if (currentSelectedComp) {
@@ -778,7 +900,7 @@ export function Dashboard() {
 																						const isOverCap = mmrRemaining < 0;
 																						
 																						return (
-																						<tr key={`comp-${player.name}-${compStats.name}-${compIdx}`} className={`border-l-4 ${isSelectedForSigning ? 'bg-green-900/30 border-green-500' : 'bg-purple-900/20 border-purple-500'} ${isSelectedElsewhere ? 'opacity-50' : ''}`}>
+																						<tr key={`comp-${originalPlayerName}-${compStats.name}-${compIdx}`} className={`border-l-4 ${isSelectedForSigning ? 'bg-green-900/30 border-green-500' : 'bg-purple-900/20 border-purple-500'} ${isSelectedElsewhere ? 'opacity-50' : ''}`}>
 																							<td className="px-6 py-3 whitespace-nowrap">
 																								<div className="flex items-center gap-2">
 																									{isSelectedForSigning ? (
@@ -793,7 +915,7 @@ export function Dashboard() {
 																									</Link>
 																									<span className="text-xs text-gray-500">({getPlayerTeamDisplay(compStats.name, compStats.team, allPlayers)})</span>
 																									<button
-																										onClick={() => handleClearComparison(player.name, compStats.name)}
+																										onClick={() => handleClearComparison(originalPlayerName, compStats.name)}
 																										className="ml-2 text-gray-500 hover:text-red-400 transition-colors"
 																										title="Remove comparison"
 																									>
@@ -816,7 +938,7 @@ export function Dashboard() {
 																								const comparisonValue = compStats[statKey as keyof CscStats] as number | undefined;
 																								
 																								return (
-																									<td key={`comparison-${player.name}-${compStats.name}-${statKey}`} className="px-4 py-3 whitespace-nowrap">
+																									<td key={`comparison-${originalPlayerName}-${compStats.name}-${statKey}`} className="px-4 py-3 whitespace-nowrap">
 																										<div className="flex items-center">
 																											<span className={`text-sm ${isSelectedForSigning ? 'text-green-300' : 'text-purple-300'}`}>
 																												{comparisonValue !== undefined ? comparisonValue.toFixed(2) : "N/A"}
@@ -836,7 +958,7 @@ export function Dashboard() {
 																							</td>
 																							<td className="px-4 py-3 whitespace-nowrap">
 																								<button
-																									onClick={() => handleSelectForSigning(player.name, compStats.name)}
+																									onClick={() => handleSelectForSigning(originalPlayerName, compStats.name)}
 																									disabled={isSelectedElsewhere}
 																									className={`px-2 py-1 text-xs rounded transition-colors ${
 																										isSelectedForSigning 
@@ -869,7 +991,7 @@ export function Dashboard() {
 													</div>
 												);
 											case "mmrSummary":
-												if (!selectedTeam.players || selectedTeam.players.length === 0) return null;
+												if (effectiveTeamPlayers.length === 0) return null;
 												return (
 													<div className="mb-6 p-4 bg-gray-800 rounded-lg border border-gray-700 relative group">
 														<button
@@ -886,15 +1008,15 @@ export function Dashboard() {
 															<div>
 																<p className="text-sm text-gray-400">Total Team MMR</p>
 																<p className="text-2xl font-bold text-blue-400">
-																	{selectedTeam.players.reduce((acc, player) => acc + (player.mmr || 0), 0)}
+																	{effectiveTeamPlayers.reduce((acc, player) => acc + (playerMmrMap[player.name] || player.mmr || 0), 0)}
 																</p>
 															</div>
 															<div>
 																<p className="text-sm text-gray-400">Average MMR</p>
 																<p className="text-2xl font-bold text-green-400">
 																	{Math.round(
-																		selectedTeam.players.reduce((acc, player) => acc + (player.mmr || 0), 0) /
-																			selectedTeam.players.length
+																		effectiveTeamPlayers.reduce((acc, player) => acc + (playerMmrMap[player.name] || player.mmr || 0), 0) /
+																			effectiveTeamPlayers.length
 																	)}
 																</p>
 															</div>
@@ -902,7 +1024,7 @@ export function Dashboard() {
 																<p className="text-sm text-gray-400">MMR Remaining</p>
 																<p className="text-2xl font-bold text-purple-400">
 																	{selectedTeam.tier.mmrCap -
-																		selectedTeam.players.reduce((acc, player) => acc + (player.mmr || 0), 0)}
+																		effectiveTeamPlayers.reduce((acc, player) => acc + (playerMmrMap[player.name] || player.mmr || 0), 0)}
 																</p>
 															</div>
 														</div>
@@ -955,7 +1077,7 @@ export function Dashboard() {
 					alreadySelectedForSigning={allSelectedForSigning}
 					playerMmrMap={playerMmrMap}
 					teamMmrCap={selectedTeam.tier.mmrCap}
-					teamCurrentMmr={selectedTeam.players?.reduce((acc, p) => acc + (p.mmr || 0), 0) || 0}
+					teamCurrentMmr={selectedTeam.players?.reduce((acc, p) => acc + (playerMmrMap[p.name] || p.mmr || 0), 0) || 0}
 					selectedSigningsMmrDelta={selectedSigningsMmrDelta}
 					playersData={allPlayers}
 				/>

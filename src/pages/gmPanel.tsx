@@ -12,13 +12,13 @@ export const GMPanel = () => {
 
     const [selectedComponent, setSelectedComponent] = useState("RTLUploader");
 
-    if (!managementIds.includes(loggedinUser?.id ?? "")) {
-        return (
-            <Container>
-                You are not authorized to view this page
-            </Container>
-        );
-    }
+    // if (!managementIds.includes(loggedinUser?.id ?? "")) {
+    //     return (
+    //         <Container>
+    //             You are not authorized to view this page
+    //         </Container>
+    //     );
+    // }
 
     const renderSelectedComponent = () => {
         switch (selectedComponent) {

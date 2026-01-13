@@ -6,6 +6,7 @@ import { Franchise } from "../../models/franchise-types";
 import { useLocalStorage } from "../../common/hooks/localStorage";
 import { useStatsWithFallback } from "./hooks/useStatsWithFallback";
 import { useCscPlayersCache } from "../../dao/cscPlayerGraphQLDao";
+import { useDataContext } from "../../DataContext";
 import { CscPlayer } from "../../models/csc-player-types";
 import { CscStats } from "../../models/csc-stats-types";
 import { GMSidebar } from "./components/GMSidebar";
@@ -28,6 +29,7 @@ const PLAYSTYLES: Playstyle[] = ["Aggressive", "Passive"];
 const COMMS_RATINGS: CommsRating[] = ["Very Bad", "Bad", "Normal", "Great", "Excellent"];
 
 export function ScoutingNotes() {
+	const { gmRTLCsv } = useDataContext();
 	const { data: franchises = [], isLoading } = useFetchFranchisesGraph();
 	const [selectedFranchise, setSelectedFranchise] = useLocalStorage("franchise", "");
 	const [searchQuery, setSearchQuery] = React.useState("");
@@ -94,16 +96,51 @@ export function ScoutingNotes() {
 		return tierStats || [];
 	}, [selectedTeam, statsCache]);
 
-	// Get player MMR map
+	// Get player MMR map - prioritize RTL CSV data when available
 	const playerMmrMap = React.useMemo(() => {
 		const map: Record<string, number> = {};
+		
+		// First, populate from API data
 		allPlayers.forEach((player: CscPlayer) => {
 			if (player.mmr) {
 				map[player.name] = player.mmr;
 			}
 		});
+		
+		// Override with RTL CSV data if available (more up-to-date)
+		if (gmRTLCsv && gmRTLCsv.length > 0) {
+			// Build a map of CSC ID to player name for lookup
+			const cscIdToName: Record<string, string> = {};
+			allPlayers.forEach((player: CscPlayer) => {
+				if (player.id) {
+					cscIdToName[player.id] = player.name;
+				}
+			});
+			
+			gmRTLCsv.forEach(row => {
+				const mmrValue = row["MMR"] || row["mmr"];
+				if (!mmrValue) return;
+				
+				const mmr = parseInt(mmrValue, 10);
+				if (isNaN(mmr)) return;
+				
+				// Try to find player by name first
+				const playerName = row["Name"] || row["Player Name"] || row["name"];
+				if (playerName) {
+					map[playerName] = mmr;
+					return;
+				}
+				
+				// Fall back to matching by CSC ID
+				const cscId = row["CSC ID"] || row["cscId"] || row["Id"];
+				if (cscId && cscIdToName[cscId]) {
+					map[cscIdToName[cscId]] = mmr;
+				}
+			});
+		}
+		
 		return map;
-	}, [allPlayers]);
+	}, [allPlayers, gmRTLCsv]);
 
 	// Get scouting notes for current team
 	const currentTeamNotes = React.useMemo(() => {

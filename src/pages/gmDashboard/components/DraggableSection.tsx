@@ -49,12 +49,13 @@ export function DraggableSection({
 	);
 }
 
-export type SectionId = "insights" | "teamSummary" | "roleFitScore" | "playerTable" | "mmrSummary";
+export type SectionId = "insights" | "teamSummary" | "roleFitScore" | "playstyleAnalysis" | "playerTable" | "mmrSummary";
 
 export const DEFAULT_SECTION_ORDER: SectionId[] = [
 	"insights",
 	"teamSummary",
 	"roleFitScore",
+	"playstyleAnalysis",
 	"playerTable",
 	"mmrSummary",
 ];
@@ -63,6 +64,7 @@ export const SECTION_LABELS: Record<SectionId, string> = {
 	insights: "Actionable Insights",
 	teamSummary: "Team Summary",
 	roleFitScore: "Role Fit Score",
+	playstyleAnalysis: "Playstyle Analysis",
 	playerTable: "Player Table",
 	mmrSummary: "MMR Summary",
 };

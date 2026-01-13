@@ -16,7 +16,24 @@ import { useAnalytikillExtendedStats } from "./dao/analytikill";
 import { queryClient } from "./App";
 
 const useDataContextProvider = () => {
-	const [gmRTLCsv, setGmRTLCsv] = React.useState<Record<string,string>[] | null>(null);
+	// Persist gmRTLCsv to sessionStorage so it survives page navigation
+	const [gmRTLCsv, setGmRTLCsvState] = React.useState<Record<string,string>[] | null>(() => {
+		try {
+			const stored = sessionStorage.getItem("gmRTLCsv");
+			return stored ? JSON.parse(stored) : null;
+		} catch {
+			return null;
+		}
+	});
+	
+	const setGmRTLCsv = React.useCallback((data: Record<string, string>[] | null) => {
+		setGmRTLCsvState(data);
+		if (data) {
+			sessionStorage.setItem("gmRTLCsv", JSON.stringify(data));
+		} else {
+			sessionStorage.removeItem("gmRTLCsv");
+		}
+	}, []);
 	const [discordUser, setDiscordUser] = React.useState<DiscordUser | null>(null);
 	const { data: seasonAndTierConfig = undefined, isLoading: isLoadingCscSeasonAndTiers } = useCachedCscSeasonAndTiers();
 	const [ players, setPlayers ] = React.useState<Player[]>([]);

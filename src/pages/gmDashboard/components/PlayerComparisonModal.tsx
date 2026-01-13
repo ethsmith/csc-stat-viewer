@@ -115,9 +115,12 @@ export function PlayerComparisonModal({
 									const playerMmr = playerMmrMap[player.name];
 									const isAlreadySelected = alreadySelectedForSigning.includes(player.name);
 									
+									// Get current player's MMR from the map (more reliable than prop)
+									const currentMmr = playerMmrMap[currentPlayerName] || currentPlayerMmr || 0;
+									
 									// MMR calculation includes all currently selected signings + this potential swap
-									const mmrAfterSwap = currentPlayerMmr && playerMmr 
-										? teamCurrentMmr + selectedSigningsMmrDelta - currentPlayerMmr + playerMmr
+									const mmrAfterSwap = playerMmr !== undefined
+										? teamCurrentMmr + selectedSigningsMmrDelta - currentMmr + playerMmr
 										: undefined;
 									const mmrRemaining = mmrAfterSwap !== undefined ? teamMmrCap - mmrAfterSwap : undefined;
 									const isOverCap = mmrRemaining !== undefined && mmrRemaining < 0;
@@ -125,7 +128,7 @@ export function PlayerComparisonModal({
 									return (
 										<tr 
 											key={player.name} 
-											className={`hover:bg-gray-750 cursor-pointer ${isOverCap || isAlreadySelected ? 'opacity-50' : ''}`}
+											className={`hover:bg-gray-750 cursor-pointer ${isOverCap ? 'bg-red-900/30' : ''} ${isAlreadySelected ? 'opacity-50' : ''}`}
 											onClick={() => !isAlreadySelected && onSelectPlayer({ stats: player, mmr: playerMmr })}
 										>
 											<td className="px-4 py-3 text-sm font-medium text-white">
