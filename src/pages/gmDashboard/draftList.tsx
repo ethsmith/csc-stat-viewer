@@ -10,7 +10,7 @@ import { useFetchFranchisesGraph } from "../../dao/franchisesGraphQLDao";
 import { Franchise } from "../../models/franchise-types";
 import { PlayerTypes } from "../../common/utils/player-utils";
 import { PlayerRole, AVAILABLE_STATS } from "./types";
-import { useEcoRatings } from "./hooks/useEcoRatings";
+import { useEcoRatings, MapName } from "./hooks/useEcoRatings";
 import { useDraftStatus } from "./hooks/useDraftStatus";
 
 // Scouting note types
@@ -53,13 +53,18 @@ export function DraftList() {
 	const [statsPopupPlayer, setStatsPopupPlayer] = React.useState<string | null>(null);
 	const [similarPlayerTarget, setSimilarPlayerTarget] = React.useState<string | null>(null);
 
+	// Extended types for map-specific sorting/filtering (matching tableView)
+	type MapSortColumn = `mapRating_${MapName}` | `mapGames_${MapName}`;
+	type ExtendedSortColumn = keyof CscStats | "name" | "team" | "ecoRating" | "ecoRatingDiff" | MapSortColumn;
+	type ExtendedFilterStat = keyof CscStats | "ecoRating" | MapSortColumn;
+
 	// Filter preset type matching tableView
 	type FilterPreset = {
 		name: string;
 		teamFilter: string;
 		minGames: number;
-		statFilters: Array<{ stat: keyof CscStats | "ecoRating"; operator: "<" | ">" | "<=" | ">=" | "="; value: number }>;
-		sortColumn: keyof CscStats | "name" | "team" | "ecoRating";
+		statFilters: Array<{ stat: ExtendedFilterStat; operator: "<" | ">" | "<=" | ">=" | "="; value: number }>;
+		sortColumn: ExtendedSortColumn;
 		sortDirection: "asc" | "desc";
 	};
 
@@ -193,7 +198,12 @@ export function DraftList() {
 	} = useDraftStatus({ autoRefresh, refetchInterval: 2000 });
 
 	// Fetch eco ratings from shared hook
-	const { ecoRatingMap } = useEcoRatings();
+	const { ecoRatingMap, ecoDataMap, mapNames } = useEcoRatings();
+
+	// Helper to format map name for display (e.g., "de_nuke" -> "Nuke")
+	const formatMapName = (mapName: MapName): string => {
+		return mapName.replace("de_", "").charAt(0).toUpperCase() + mapName.replace("de_", "").slice(1);
+	};
 
 	const currentFranchise = franchises.find((f: Franchise) => f.prefix === selectedFranchise);
 
@@ -254,8 +264,14 @@ export function DraftList() {
 					let val: number | undefined;
 					if (filter.stat === "ecoRating") {
 						val = ecoRatingMap[p.name.toLowerCase()];
+					} else if (filter.stat.startsWith("mapRating_")) {
+						const mapName = filter.stat.replace("mapRating_", "") as MapName;
+						val = ecoDataMap[p.name.toLowerCase()]?.mapData?.[mapName]?.rating;
+					} else if (filter.stat.startsWith("mapGames_")) {
+						const mapName = filter.stat.replace("mapGames_", "") as MapName;
+						val = ecoDataMap[p.name.toLowerCase()]?.mapData?.[mapName]?.gamesPlayed;
 					} else {
-						val = p[filter.stat] as number | undefined;
+						val = p[filter.stat as keyof CscStats] as number | undefined;
 					}
 					if (val === undefined) return false;
 					switch (filter.operator) {
@@ -299,9 +315,22 @@ export function DraftList() {
 				} else if (activePreset.sortColumn === "ecoRating") {
 					aVal = ecoRatingMap[a.name.toLowerCase()];
 					bVal = ecoRatingMap[b.name.toLowerCase()];
+				} else if (activePreset.sortColumn === "ecoRatingDiff") {
+					const aEco = ecoRatingMap[a.name.toLowerCase()];
+					const bEco = ecoRatingMap[b.name.toLowerCase()];
+					aVal = (aEco !== undefined && a.rating) ? ((aEco - a.rating) / a.rating) * 100 : undefined;
+					bVal = (bEco !== undefined && b.rating) ? ((bEco - b.rating) / b.rating) * 100 : undefined;
+				} else if (activePreset.sortColumn.startsWith("mapRating_")) {
+					const mapName = activePreset.sortColumn.replace("mapRating_", "") as MapName;
+					aVal = ecoDataMap[a.name.toLowerCase()]?.mapData?.[mapName]?.rating;
+					bVal = ecoDataMap[b.name.toLowerCase()]?.mapData?.[mapName]?.rating;
+				} else if (activePreset.sortColumn.startsWith("mapGames_")) {
+					const mapName = activePreset.sortColumn.replace("mapGames_", "") as MapName;
+					aVal = ecoDataMap[a.name.toLowerCase()]?.mapData?.[mapName]?.gamesPlayed;
+					bVal = ecoDataMap[b.name.toLowerCase()]?.mapData?.[mapName]?.gamesPlayed;
 				} else {
-					aVal = a[activePreset.sortColumn] as number | undefined;
-					bVal = b[activePreset.sortColumn] as number | undefined;
+					aVal = a[activePreset.sortColumn as keyof CscStats] as number | undefined;
+					bVal = b[activePreset.sortColumn as keyof CscStats] as number | undefined;
 				}
 				
 				if (aVal === undefined && bVal === undefined) return 0;
@@ -337,7 +366,7 @@ export function DraftList() {
 		}
 		
 		return sorted;
-	}, [tierPlayers, searchQuery, showDraftedOnly, draftStatusMap, playerTypeMap, activePreset, playersData, ecoRatingMap]);
+	}, [tierPlayers, searchQuery, showDraftedOnly, draftStatusMap, playerTypeMap, activePreset, playersData, ecoRatingMap, ecoDataMap]);
 
 	// Find similar players based on tracked stats
 	const similarPlayers = React.useMemo(() => {
@@ -434,8 +463,14 @@ export function DraftList() {
 					let val: number | undefined;
 					if (filter.stat === "ecoRating") {
 						val = ecoRatingMap[playerName.toLowerCase()];
+					} else if (filter.stat.startsWith("mapRating_")) {
+						const mapName = filter.stat.replace("mapRating_", "") as MapName;
+						val = ecoDataMap[playerName.toLowerCase()]?.mapData?.[mapName]?.rating;
+					} else if (filter.stat.startsWith("mapGames_")) {
+						const mapName = filter.stat.replace("mapGames_", "") as MapName;
+						val = ecoDataMap[playerName.toLowerCase()]?.mapData?.[mapName]?.gamesPlayed;
 					} else {
-						val = stats[filter.stat] as number | undefined;
+						val = stats[filter.stat as keyof CscStats] as number | undefined;
 					}
 					if (val === undefined) return false;
 					switch (filter.operator) {
@@ -463,9 +498,22 @@ export function DraftList() {
 				} else if (activePreset.sortColumn === "ecoRating") {
 					aVal = ecoRatingMap[a.playerName.toLowerCase()];
 					bVal = ecoRatingMap[b.playerName.toLowerCase()];
+				} else if (activePreset.sortColumn === "ecoRatingDiff") {
+					const aEco = ecoRatingMap[a.playerName.toLowerCase()];
+					const bEco = ecoRatingMap[b.playerName.toLowerCase()];
+					aVal = (aEco !== undefined && a.stats?.rating) ? ((aEco - a.stats.rating) / a.stats.rating) * 100 : undefined;
+					bVal = (bEco !== undefined && b.stats?.rating) ? ((bEco - b.stats.rating) / b.stats.rating) * 100 : undefined;
+				} else if (activePreset.sortColumn.startsWith("mapRating_")) {
+					const mapName = activePreset.sortColumn.replace("mapRating_", "") as MapName;
+					aVal = ecoDataMap[a.playerName.toLowerCase()]?.mapData?.[mapName]?.rating;
+					bVal = ecoDataMap[b.playerName.toLowerCase()]?.mapData?.[mapName]?.rating;
+				} else if (activePreset.sortColumn.startsWith("mapGames_")) {
+					const mapName = activePreset.sortColumn.replace("mapGames_", "") as MapName;
+					aVal = ecoDataMap[a.playerName.toLowerCase()]?.mapData?.[mapName]?.gamesPlayed;
+					bVal = ecoDataMap[b.playerName.toLowerCase()]?.mapData?.[mapName]?.gamesPlayed;
 				} else {
-					aVal = a.stats?.[activePreset.sortColumn] as number | undefined;
-					bVal = b.stats?.[activePreset.sortColumn] as number | undefined;
+					aVal = a.stats?.[activePreset.sortColumn as keyof CscStats] as number | undefined;
+					bVal = b.stats?.[activePreset.sortColumn as keyof CscStats] as number | undefined;
 				}
 				
 				if (aVal === undefined && bVal === undefined) return 0;
@@ -500,7 +548,7 @@ export function DraftList() {
 		});
 		
 		return [...available, ...unknown, ...drafted];
-	}, [parsedMyDraftList, selectedTier, draftStatusMap, activePreset, tierPlayers, playersData, ecoRatingMap]);
+	}, [parsedMyDraftList, selectedTier, draftStatusMap, activePreset, tierPlayers, playersData, ecoRatingMap, ecoDataMap]);
 
 	// Helper to check if player can move up within their availability group
 	const canMoveUp = (playerName: string, index: number): boolean => {
@@ -774,6 +822,34 @@ export function DraftList() {
 														<div className="text-xs text-gray-500">
 															{getPlayerTeamDisplay(player.name, player.team, playersData)}
 														</div>
+														{/* Map Stats - always visible */}
+														{(() => {
+															const ecoData = ecoDataMap[player.name.toLowerCase()];
+															const mapsWithData = mapNames
+																.filter(m => 
+																	ecoData?.mapData?.[m]?.rating !== undefined || 
+																	ecoData?.mapData?.[m]?.gamesPlayed !== undefined
+																)
+																.sort((a, b) => {
+																	const aRating = ecoData?.mapData?.[a]?.rating ?? -1;
+																	const bRating = ecoData?.mapData?.[b]?.rating ?? -1;
+																	return bRating - aRating;
+																});
+															if (mapsWithData.length === 0) return null;
+															return (
+																<div className="flex flex-wrap gap-1 mt-1">
+																	{mapsWithData.map(mapName => {
+																		const mapData = ecoData?.mapData?.[mapName];
+																		return (
+																			<span key={mapName} className="px-1.5 py-0.5 bg-gray-700 rounded text-xs text-gray-400">
+																				{formatMapName(mapName)}: {mapData?.rating?.toFixed(2) || "-"}
+																				<span className="text-gray-600">({mapData?.gamesPlayed || 0})</span>
+																			</span>
+																		);
+																	})}
+																</div>
+															);
+														})()}
 													</td>
 													<td className="px-3 py-2 text-center text-sm text-gray-300">
 														{player.rating?.toFixed(2) || "-"}
@@ -822,8 +898,8 @@ export function DraftList() {
 												{/* Inline Stats Row */}
 												{statsPopupPlayer === player.name && (
 													<tr className="bg-gray-750/50">
-														<td colSpan={6} className="px-3 py-2">
-															<div className="flex flex-wrap gap-3 text-xs">
+														<td colSpan={7} className="px-3 py-2">
+															<div className="flex flex-wrap gap-3 text-xs mb-2">
 																{trackedStats.length === 0 ? (
 																	<span className="text-gray-500">No stats being tracked. Configure in Set Targets.</span>
 																) : (
@@ -843,6 +919,31 @@ export function DraftList() {
 																	})
 																)}
 															</div>
+															{/* Map Stats */}
+															{(() => {
+																const ecoData = ecoDataMap[player.name.toLowerCase()];
+																const mapsWithData = mapNames.filter(m => 
+																	ecoData?.mapData?.[m]?.rating !== undefined || 
+																	ecoData?.mapData?.[m]?.gamesPlayed !== undefined
+																);
+																if (mapsWithData.length === 0) return null;
+																return (
+																	<div className="flex flex-wrap gap-2 text-xs border-t border-gray-700 pt-2">
+																		<span className="text-gray-500 mr-1">Maps:</span>
+																		{mapsWithData.map(mapName => {
+																			const mapData = ecoData?.mapData?.[mapName];
+																			return (
+																				<span key={mapName} className="px-2 py-0.5 bg-gray-700 rounded text-gray-300">
+																					{formatMapName(mapName)}: {mapData?.rating?.toFixed(2) || "-"}
+																					{mapData?.gamesPlayed !== undefined && (
+																						<span className="text-gray-500 ml-1">({mapData.gamesPlayed}g)</span>
+																					)}
+																				</span>
+																			);
+																		})}
+																	</div>
+																);
+															})()}
 														</td>
 													</tr>
 												)}
@@ -1011,6 +1112,34 @@ export function DraftList() {
 															{ecoRatingMap[playerName.toLowerCase()] !== undefined && <>Eco: {ecoRatingMap[playerName.toLowerCase()]?.toFixed(2)}{playerStats && " | "}</>}
 															{playerStats && <>ADR: {playerStats.adr?.toFixed(1)}</>}
 														</div>
+														{/* Map Stats - always visible */}
+														{(() => {
+															const ecoData = ecoDataMap[playerName.toLowerCase()];
+															const mapsWithData = mapNames
+																.filter(m => 
+																	ecoData?.mapData?.[m]?.rating !== undefined || 
+																	ecoData?.mapData?.[m]?.gamesPlayed !== undefined
+																)
+																.sort((a, b) => {
+																	const aRating = ecoData?.mapData?.[a]?.rating ?? -1;
+																	const bRating = ecoData?.mapData?.[b]?.rating ?? -1;
+																	return bRating - aRating;
+																});
+															if (mapsWithData.length === 0) return null;
+															return (
+																<div className="flex flex-wrap gap-1 mt-1">
+																	{mapsWithData.map(mapName => {
+																		const mapData = ecoData?.mapData?.[mapName];
+																		return (
+																			<span key={mapName} className="px-1.5 py-0.5 bg-gray-700 rounded text-xs text-gray-400">
+																				{formatMapName(mapName)}: {mapData?.rating?.toFixed(2) || "-"}
+																				<span className="text-gray-600">({mapData?.gamesPlayed || 0})</span>
+																			</span>
+																		);
+																	})}
+																</div>
+															);
+														})()}
 													</div>
 
 													{/* Status */}
@@ -1078,7 +1207,7 @@ export function DraftList() {
 												{/* Inline Stats Section */}
 												{statsPopupPlayer === playerName && (
 													<div className="mt-2 ml-9 p-2 bg-cyan-900/20 rounded-lg border border-cyan-700">
-														<div className="flex flex-wrap gap-3 text-xs">
+														<div className="flex flex-wrap gap-3 text-xs mb-2">
 															{trackedStats.length === 0 ? (
 																<span className="text-gray-500">No stats being tracked. Configure in Set Targets.</span>
 															) : (
@@ -1098,6 +1227,31 @@ export function DraftList() {
 																})
 															)}
 														</div>
+														{/* Map Stats */}
+														{(() => {
+															const ecoData = ecoDataMap[playerName.toLowerCase()];
+															const mapsWithData = mapNames.filter(m => 
+																ecoData?.mapData?.[m]?.rating !== undefined || 
+																ecoData?.mapData?.[m]?.gamesPlayed !== undefined
+															);
+															if (mapsWithData.length === 0) return null;
+															return (
+																<div className="flex flex-wrap gap-2 text-xs border-t border-cyan-700 pt-2">
+																	<span className="text-gray-500 mr-1">Maps:</span>
+																	{mapsWithData.map(mapName => {
+																		const mapData = ecoData?.mapData?.[mapName];
+																		return (
+																			<span key={mapName} className="px-2 py-0.5 bg-gray-700 rounded text-gray-300">
+																				{formatMapName(mapName)}: {mapData?.rating?.toFixed(2) || "-"}
+																				{mapData?.gamesPlayed !== undefined && (
+																					<span className="text-gray-500 ml-1">({mapData.gamesPlayed}g)</span>
+																				)}
+																			</span>
+																		);
+																	})}
+																</div>
+															);
+														})()}
 													</div>
 												)}
 

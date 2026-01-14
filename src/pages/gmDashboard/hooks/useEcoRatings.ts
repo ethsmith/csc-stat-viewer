@@ -6,9 +6,19 @@ import * as React from "react";
 const ECO_RATING_SPREADSHEET_ID = "1lcZ80NLIG2vLQvS7G3zL8tPcc6_iV24PG_V-ZmZNWHo";
 const ECO_RATING_SHEET_NAME = "ratings";
 
-interface EcoRating {
+// Map names from the spreadsheet
+const MAP_NAMES = ["de_nuke", "de_anubis", "de_dust2", "de_inferno", "de_overpass", "de_ancient", "de_mirage", "de_train"] as const;
+export type MapName = typeof MAP_NAMES[number];
+
+export interface MapData {
+	rating?: number;
+	gamesPlayed?: number;
+}
+
+export interface EcoRating {
 	name: string;
 	ecoRating: number;
+	mapData: Record<MapName, MapData>;
 }
 
 // Helper to parse CSV line with quoted values
@@ -57,6 +67,19 @@ const fetchEcoRatings = async (): Promise<EcoRating[]> => {
 	const nameIndex = headers.findIndex(h => h === "name");
 	const ratingIndex = headers.findIndex(h => h === "final_rating" || h === "final rating" || h === "finalrating");
 	
+	// Find map rating and games played column indices
+	const mapRatingIndices: Record<MapName, number> = {} as Record<MapName, number>;
+	const mapGamesIndices: Record<MapName, number> = {} as Record<MapName, number>;
+	
+	MAP_NAMES.forEach(mapName => {
+		// Look for columns like "map_ratings/de_nuke" or "map_games_played/de_nuke"
+		const ratingColIndex = headers.findIndex(h => h === `map_ratings/${mapName}`);
+		const gamesColIndex = headers.findIndex(h => h === `map_games_played/${mapName}`);
+		
+		if (ratingColIndex !== -1) mapRatingIndices[mapName] = ratingColIndex;
+		if (gamesColIndex !== -1) mapGamesIndices[mapName] = gamesColIndex;
+	});
+	
 	if (nameIndex === -1) {
 		console.error("Could not find 'Name' column in eco ratings spreadsheet. Headers:", headers);
 		return [];
@@ -79,7 +102,34 @@ const fetchEcoRatings = async (): Promise<EcoRating[]> => {
 			const ecoRating = parseFloat(ratingStr);
 			
 			if (name && !isNaN(ecoRating)) {
-				ratings.push({ name, ecoRating });
+				// Parse map data
+				const mapData: Record<MapName, MapData> = {} as Record<MapName, MapData>;
+				
+				MAP_NAMES.forEach(mapName => {
+					mapData[mapName] = {};
+					
+					// Get map rating if column exists
+					const ratingColIdx = mapRatingIndices[mapName];
+					if (ratingColIdx !== undefined && values.length > ratingColIdx) {
+						const mapRatingStr = values[ratingColIdx].replace(/^"|"$/g, "").trim();
+						const mapRating = parseFloat(mapRatingStr);
+						if (!isNaN(mapRating)) {
+							mapData[mapName].rating = mapRating;
+						}
+					}
+					
+					// Get games played if column exists
+					const gamesColIdx = mapGamesIndices[mapName];
+					if (gamesColIdx !== undefined && values.length > gamesColIdx) {
+						const gamesStr = values[gamesColIdx].replace(/^"|"$/g, "").trim();
+						const games = parseInt(gamesStr, 10);
+						if (!isNaN(games)) {
+							mapData[mapName].gamesPlayed = games;
+						}
+					}
+				});
+				
+				ratings.push({ name, ecoRating, mapData });
 			}
 		}
 	}
@@ -110,9 +160,20 @@ export function useEcoRatings() {
 		return map;
 	}, [ecoRatings]);
 
+	// Create a map for quick lookup of full player eco data including map stats
+	const ecoDataMap = React.useMemo(() => {
+		const map: Record<string, EcoRating> = {};
+		ecoRatings.forEach(player => {
+			map[player.name.toLowerCase()] = player;
+		});
+		return map;
+	}, [ecoRatings]);
+
 	return {
 		ecoRatings,
 		ecoRatingMap,
+		ecoDataMap,
+		mapNames: MAP_NAMES,
 		isLoading,
 		error
 	};

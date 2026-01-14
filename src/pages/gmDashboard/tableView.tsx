@@ -12,7 +12,12 @@ import { OffSeasonBanner } from "./components/OffSeasonBanner";
 import { handleExportSettings, createImportHandler, parseColorblindColors, getPlayerTeamDisplay } from "./utils";
 import { useCscPlayersCache } from "../../dao/cscPlayerGraphQLDao";
 import { ALL_STATS } from "./types";
-import { useEcoRatings } from "./hooks/useEcoRatings";
+import { useEcoRatings, MapName } from "./hooks/useEcoRatings";
+
+// Extended sort column type that includes map-specific sorting
+type MapSortColumn = `mapRating_${MapName}` | `mapGames_${MapName}`;
+type ExtendedSortColumn = keyof CscStats | "name" | "team" | "ecoRating" | "ecoRatingDiff" | MapSortColumn;
+type ExtendedFilterStat = keyof CscStats | "ecoRating" | MapSortColumn;
 
 export function TableView() {
 	const { data: franchises = [], isLoading } = useFetchFranchisesGraph();
@@ -39,12 +44,12 @@ export function TableView() {
 	const [playerSearchQuery, setPlayerSearchQuery] = React.useState("");
 	const [selectedPlayers, setSelectedPlayers] = React.useState<string[]>([]);
 	const [showPlayerDropdown, setShowPlayerDropdown] = React.useState(false);
-	const [sortColumn, setSortColumn] = React.useState<keyof CscStats | "name" | "team" | "ecoRating" | "ecoRatingDiff">("rating");
+	const [sortColumn, setSortColumn] = React.useState<ExtendedSortColumn>("rating");
 	const [sortDirection, setSortDirection] = React.useState<"asc" | "desc">("desc");
 	const [teamFilter, setTeamFilter] = React.useState<string>("");
 	const [minGames, setMinGames] = React.useState<number>(0);
 	const [showFilters, setShowFilters] = React.useState(false);
-	const [statFilters, setStatFilters] = React.useState<Array<{ stat: keyof CscStats | "ecoRating"; operator: "<" | ">" | "<=" | ">=" | "="; value: number }>>([]);
+	const [statFilters, setStatFilters] = React.useState<Array<{ stat: ExtendedFilterStat; operator: "<" | ">" | "<=" | ">=" | "="; value: number }>>([]);
 	const [showSavePresetModal, setShowSavePresetModal] = React.useState(false);
 	const [newPresetName, setNewPresetName] = React.useState("");
 	const fileInputRef = React.useRef<HTMLInputElement>(null);
@@ -59,7 +64,12 @@ export function TableView() {
 	const { data: playersData } = useCscPlayersCache(effectiveSeason);
 
 	// Fetch eco ratings from shared hook
-	const { ecoRatingMap } = useEcoRatings();
+	const { ecoRatingMap, ecoDataMap, mapNames } = useEcoRatings();
+
+	// Helper to format map name for display (e.g., "de_nuke" -> "Nuke")
+	const formatMapName = (mapName: MapName): string => {
+		return mapName.replace("de_", "").charAt(0).toUpperCase() + mapName.replace("de_", "").slice(1);
+	};
 
 	const currentFranchise = franchises.find((f: Franchise) => f.prefix === selectedFranchise);
 
@@ -126,8 +136,14 @@ export function TableView() {
 				let val: number | undefined;
 				if (filter.stat === "ecoRating") {
 					val = ecoRatingMap[p.name.toLowerCase()];
+				} else if (filter.stat.startsWith("mapRating_")) {
+					const mapName = filter.stat.replace("mapRating_", "") as MapName;
+					val = ecoDataMap[p.name.toLowerCase()]?.mapData?.[mapName]?.rating;
+				} else if (filter.stat.startsWith("mapGames_")) {
+					const mapName = filter.stat.replace("mapGames_", "") as MapName;
+					val = ecoDataMap[p.name.toLowerCase()]?.mapData?.[mapName]?.gamesPlayed;
 				} else {
-					val = p[filter.stat] as number | undefined;
+					val = p[filter.stat as keyof CscStats] as number | undefined;
 				}
 				if (val === undefined) return false;
 				switch (filter.operator) {
@@ -142,7 +158,7 @@ export function TableView() {
 		});
 		
 		return players;
-	}, [tierPlayers, selectedPlayers, teamFilter, minGames, statFilters, ecoRatingMap]);
+	}, [tierPlayers, selectedPlayers, teamFilter, minGames, statFilters, ecoRatingMap, ecoDataMap]);
 
 	const sortedPlayers = React.useMemo(() => {
 		return [...filteredPlayers].sort((a, b) => {
@@ -163,9 +179,17 @@ export function TableView() {
 				const bEco = ecoRatingMap[b.name.toLowerCase()];
 				aVal = (aEco !== undefined && a.rating) ? ((aEco - a.rating) / a.rating) * 100 : undefined;
 				bVal = (bEco !== undefined && b.rating) ? ((bEco - b.rating) / b.rating) * 100 : undefined;
+			} else if (sortColumn.startsWith("mapRating_")) {
+				const mapName = sortColumn.replace("mapRating_", "") as MapName;
+				aVal = ecoDataMap[a.name.toLowerCase()]?.mapData?.[mapName]?.rating;
+				bVal = ecoDataMap[b.name.toLowerCase()]?.mapData?.[mapName]?.rating;
+			} else if (sortColumn.startsWith("mapGames_")) {
+				const mapName = sortColumn.replace("mapGames_", "") as MapName;
+				aVal = ecoDataMap[a.name.toLowerCase()]?.mapData?.[mapName]?.gamesPlayed;
+				bVal = ecoDataMap[b.name.toLowerCase()]?.mapData?.[mapName]?.gamesPlayed;
 			} else {
-				aVal = a[sortColumn] as number | undefined;
-				bVal = b[sortColumn] as number | undefined;
+				aVal = a[sortColumn as keyof CscStats] as number | undefined;
+				bVal = b[sortColumn as keyof CscStats] as number | undefined;
 			}
 			
 			// Handle undefined values - push them to the end
@@ -182,9 +206,9 @@ export function TableView() {
 			
 			return sortDirection === "asc" ? comparison : -comparison;
 		});
-	}, [filteredPlayers, sortColumn, sortDirection, ecoRatingMap]);
+	}, [filteredPlayers, sortColumn, sortDirection, ecoRatingMap, ecoDataMap]);
 
-	const handleSort = (column: keyof CscStats | "name" | "team" | "ecoRating" | "ecoRatingDiff") => {
+	const handleSort = (column: ExtendedSortColumn) => {
 		if (sortColumn === column) {
 			setSortDirection(prev => prev === "asc" ? "desc" : "asc");
 		} else {
@@ -194,7 +218,7 @@ export function TableView() {
 		}
 	};
 
-	const getSortIndicator = (column: keyof CscStats | "name" | "team" | "ecoRating" | "ecoRatingDiff") => {
+	const getSortIndicator = (column: ExtendedSortColumn) => {
 		if (sortColumn !== column) return null;
 		return sortDirection === "asc" ? " ▲" : " ▼";
 	};
@@ -211,8 +235,8 @@ export function TableView() {
 		name: string;
 		teamFilter: string;
 		minGames: number;
-		statFilters: Array<{ stat: keyof CscStats | "ecoRating"; operator: "<" | ">" | "<=" | ">=" | "="; value: number }>;
-		sortColumn: keyof CscStats | "name" | "team" | "ecoRating" | "ecoRatingDiff";
+		statFilters: Array<{ stat: ExtendedFilterStat; operator: "<" | ">" | "<=" | ">=" | "="; value: number }>;
+		sortColumn: ExtendedSortColumn;
 		sortDirection: "asc" | "desc";
 	};
 
@@ -495,13 +519,23 @@ export function TableView() {
 									<div className="flex gap-2">
 										<select
 											value={sortColumn}
-											onChange={(e) => setSortColumn(e.target.value as keyof CscStats | "name" | "team" | "ecoRating" | "ecoRatingDiff")}
+											onChange={(e) => setSortColumn(e.target.value as ExtendedSortColumn)}
 											className="px-4 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none focus:border-blue-500 min-w-[150px]"
 										>
 											<option value="name">Player Name</option>
 											<option value="team">Team</option>
 											<option value="ecoRating">Eco Rating</option>
 											<option value="ecoRatingDiff">Eco Rating % Diff</option>
+											<optgroup label="Map Ratings">
+												{mapNames.map(mapName => (
+													<option key={`mapRating_${mapName}`} value={`mapRating_${mapName}`}>{formatMapName(mapName)} Rating</option>
+												))}
+											</optgroup>
+											<optgroup label="Map Games Played">
+												{mapNames.map(mapName => (
+													<option key={`mapGames_${mapName}`} value={`mapGames_${mapName}`}>{formatMapName(mapName)} Games</option>
+												))}
+											</optgroup>
 											{ALL_STATS.map(stat => (
 												<option key={stat.key} value={stat.key}>{stat.label}</option>
 											))}
@@ -631,12 +665,22 @@ export function TableView() {
 													value={filter.stat}
 													onChange={(e) => {
 														const newFilters = [...statFilters];
-														newFilters[index] = { ...filter, stat: e.target.value as keyof CscStats | "ecoRating" };
+														newFilters[index] = { ...filter, stat: e.target.value as ExtendedFilterStat };
 														setStatFilters(newFilters);
 													}}
 													className="px-3 py-1.5 bg-gray-700 border border-gray-600 rounded-lg text-white text-sm focus:outline-none focus:border-blue-500"
 												>
 													<option value="ecoRating">Eco Rating</option>
+													<optgroup label="Map Ratings">
+														{mapNames.map(mapName => (
+															<option key={`mapRating_${mapName}`} value={`mapRating_${mapName}`}>{formatMapName(mapName)} Rating</option>
+														))}
+													</optgroup>
+													<optgroup label="Map Games Played">
+														{mapNames.map(mapName => (
+															<option key={`mapGames_${mapName}`} value={`mapGames_${mapName}`}>{formatMapName(mapName)} Games</option>
+														))}
+													</optgroup>
 													{ALL_STATS.map(stat => (
 														<option key={stat.key} value={stat.key}>{stat.label}</option>
 													))}
@@ -761,6 +805,16 @@ export function TableView() {
 									>
 										Eco Rating{getSortIndicator("ecoRating")}
 									</th>
+									{mapNames.map(mapName => (
+										<th 
+											key={`map-${mapName}`}
+											className="px-2 py-2 text-center text-xs font-medium text-gray-400 uppercase tracking-wider min-w-[80px] cursor-pointer hover:text-white transition-colors select-none bg-gray-900 sticky top-0 z-20"
+											title={`Rating and games played on ${formatMapName(mapName)} (click to sort by rating)`}
+											onClick={() => handleSort(`mapRating_${mapName}`)}
+										>
+											{formatMapName(mapName)}{getSortIndicator(`mapRating_${mapName}`)}
+										</th>
+									))}
 									{ALL_STATS.map(stat => (
 										<th 
 											key={stat.key} 
@@ -811,6 +865,29 @@ export function TableView() {
 															);
 														})()}
 													</td>
+													{mapNames.map(mapName => {
+														const ecoData = ecoDataMap[player.name.toLowerCase()];
+														const mapData = ecoData?.mapData?.[mapName];
+														const hasData = mapData?.rating !== undefined || mapData?.gamesPlayed !== undefined;
+														
+														return (
+															<td 
+																key={`map-${mapName}`}
+																className="px-2 py-2 text-center whitespace-nowrap text-gray-300"
+															>
+																{hasData ? (
+																	<span>
+																		{mapData?.rating !== undefined ? mapData.rating.toFixed(2) : "-"}
+																		{mapData?.gamesPlayed !== undefined && (
+																			<span className="text-gray-500 text-xs ml-1">({mapData.gamesPlayed})</span>
+																		)}
+																	</span>
+																) : (
+																	<span className="text-gray-600">-</span>
+																)}
+															</td>
+														);
+													})}
 													{ALL_STATS.map(stat => {
 														const value = player[stat.key] as number | undefined;
 														const compareValue = comparePlayerStats?.[stat.key] as number | undefined;
@@ -837,7 +914,7 @@ export function TableView() {
 										})
 								) : (
 									<tr>
-										<td colSpan={ALL_STATS.length + 3} className="px-6 py-8 text-center text-gray-400">
+										<td colSpan={ALL_STATS.length + 3 + mapNames.length} className="px-6 py-8 text-center text-gray-400">
 											No players found in this tier
 										</td>
 									</tr>
