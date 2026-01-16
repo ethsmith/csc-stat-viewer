@@ -13,6 +13,8 @@ import { handleExportSettings, createImportHandler, parseColorblindColors, getPl
 import { useCscPlayersCache } from "../../dao/cscPlayerGraphQLDao";
 import { ALL_STATS } from "./types";
 import { useEcoRatings, MapName } from "./hooks/useEcoRatings";
+import { useExtendedStats } from "./hooks/useExtendedStats";
+import { ExtendedStatsTable } from "./components/ExtendedStatsTable";
 
 // Extended sort column type that includes map-specific sorting
 type MapSortColumn = `mapRating_${MapName}` | `mapGames_${MapName}`;
@@ -52,6 +54,7 @@ export function TableView() {
 	const [statFilters, setStatFilters] = React.useState<Array<{ stat: ExtendedFilterStat; operator: "<" | ">" | "<=" | ">=" | "="; value: number }>>([]);
 	const [showSavePresetModal, setShowSavePresetModal] = React.useState(false);
 	const [newPresetName, setNewPresetName] = React.useState("");
+	const [statsSource, setStatsSource] = React.useState<"csc" | "extended">("csc");
 	const fileInputRef = React.useRef<HTMLInputElement>(null);
 
 	const { 
@@ -65,6 +68,13 @@ export function TableView() {
 
 	// Fetch eco ratings from shared hook
 	const { ecoRatingMap, ecoDataMap, mapNames } = useEcoRatings();
+
+	// Fetch extended stats from spreadsheet
+	const { 
+		statsByTier: extendedStatsByTier, 
+		availableTiers: extendedAvailableTiers,
+		isLoading: isLoadingExtendedStats 
+	} = useExtendedStats();
 
 	// Helper to format map name for display (e.g., "de_nuke" -> "Nuke")
 	const formatMapName = (mapName: MapName): string => {
@@ -238,6 +248,7 @@ export function TableView() {
 		statFilters: Array<{ stat: ExtendedFilterStat; operator: "<" | ">" | "<=" | ">=" | "="; value: number }>;
 		sortColumn: ExtendedSortColumn;
 		sortDirection: "asc" | "desc";
+		statsSource?: "csc" | "extended";
 	};
 
 	const parsedPresets: FilterPreset[] = React.useMemo(() => {
@@ -248,6 +259,11 @@ export function TableView() {
 		}
 	}, [savedFilterPresets]);
 
+	// Filter presets to only show CSC stats presets in the CSC view
+	const cscPresets = React.useMemo(() => {
+		return parsedPresets.filter(p => !p.statsSource || p.statsSource === "csc");
+	}, [parsedPresets]);
+
 	const saveCurrentPreset = () => {
 		if (!newPresetName.trim()) return;
 		const newPreset: FilterPreset = {
@@ -257,6 +273,7 @@ export function TableView() {
 			statFilters,
 			sortColumn,
 			sortDirection,
+			statsSource: "csc",
 		};
 		const existingIndex = parsedPresets.findIndex(p => p.name === newPreset.name);
 		let updatedPresets: FilterPreset[];
@@ -349,7 +366,7 @@ export function TableView() {
 		setMyDraftList
 	);
 
-	if (isLoading || isLoadingStats) {
+	if (isLoading || isLoadingStats || isLoadingExtendedStats) {
 		return (
 			<Container>
 				<Loading />
@@ -379,6 +396,38 @@ export function TableView() {
 				<div className="mb-6">
 					<h1 className="text-2xl font-bold text-white mb-4">Table View - All Players Comparison</h1>
 					
+					{/* Stats Source Toggle */}
+					<div className="mb-4 flex items-center gap-2">
+						<span className="text-sm text-gray-400">Stats Source:</span>
+						<div className="inline-flex rounded-lg overflow-hidden border border-gray-700">
+							<button
+								onClick={() => setStatsSource("csc")}
+								className={`px-4 py-2 text-sm font-medium transition-colors ${
+									statsSource === "csc"
+										? "bg-blue-600 text-white"
+										: "bg-gray-800 text-gray-400 hover:bg-gray-700"
+								}`}
+							>
+								CSC Stats
+							</button>
+							<button
+								onClick={() => setStatsSource("extended")}
+								className={`px-4 py-2 text-sm font-medium transition-colors ${
+									statsSource === "extended"
+										? "bg-purple-600 text-white"
+										: "bg-gray-800 text-gray-400 hover:bg-gray-700"
+								}`}
+							>
+								Extended Stats
+							</button>
+						</div>
+						{statsSource === "extended" && (
+							<span className="text-xs text-purple-400 ml-2">
+								Advanced stats from spreadsheet with 100+ metrics
+							</span>
+						)}
+					</div>
+
 					<div className="flex flex-wrap gap-4 items-end">
 						<div>
 							<label className="block text-sm text-gray-400 mb-1">Select Tier</label>
@@ -390,102 +439,107 @@ export function TableView() {
 								}}
 								className="px-4 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white focus:outline-none focus:border-blue-500"
 							>
-								{availableTiers.map(tier => (
+								{(statsSource === "csc" ? availableTiers : extendedAvailableTiers).map(tier => (
 									<option key={tier} value={tier}>{tier}</option>
 								))}
 							</select>
 						</div>
 
-						<div>
-							<label className="block text-sm text-gray-400 mb-1">Compare To Player</label>
-							<select
-								value={comparePlayer}
-								onChange={(e) => setComparePlayer(e.target.value)}
-								className="px-4 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white focus:outline-none focus:border-blue-500 min-w-[200px]"
-							>
-								<option value="">Select a player to compare...</option>
-								{tierPlayers
-									.sort((a, b) => (b.rating || 0) - (a.rating || 0))
-									.map(player => (
-										<option key={player.name} value={player.name}>
-											{player.name} ({player.rating?.toFixed(2) || "N/A"})
-										</option>
-									))}
-							</select>
-						</div>
-
-						<div className="relative">
-							<label className="block text-sm text-gray-400 mb-1">Filter Players</label>
-							<input
-								type="text"
-								placeholder="Search to add players..."
-								value={playerSearchQuery}
-								onChange={(e) => setPlayerSearchQuery(e.target.value)}
-								onFocus={() => setShowPlayerDropdown(true)}
-								className="px-4 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:border-blue-500 min-w-[250px]"
-							/>
-							{showPlayerDropdown && (
-								<>
-									<div 
-										className="fixed inset-0 z-10" 
-										onClick={() => setShowPlayerDropdown(false)}
-									/>
-									<div className="absolute top-full left-0 mt-1 w-full max-h-60 overflow-y-auto bg-gray-800 border border-gray-700 rounded-lg shadow-lg z-20">
-										{searchFilteredPlayers
+						{/* CSC Stats Controls - only show when CSC stats is selected */}
+						{statsSource === "csc" && (
+							<>
+								<div>
+									<label className="block text-sm text-gray-400 mb-1">Compare To Player</label>
+									<select
+										value={comparePlayer}
+										onChange={(e) => setComparePlayer(e.target.value)}
+										className="px-4 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white focus:outline-none focus:border-blue-500 min-w-[200px]"
+									>
+										<option value="">Select a player to compare...</option>
+										{tierPlayers
 											.sort((a, b) => (b.rating || 0) - (a.rating || 0))
-											.slice(0, 20)
 											.map(player => (
-												<button
-													key={player.name}
-													onClick={() => {
-														togglePlayerSelection(player.name);
-													}}
-													className={`w-full px-3 py-2 text-left text-sm hover:bg-gray-700 flex items-center justify-between ${
-														selectedPlayers.includes(player.name) ? "bg-blue-900/30" : ""
-													}`}
-												>
-													<span className="text-white">{player.name}</span>
-													<span className="text-gray-400 text-xs">
-														{player.rating?.toFixed(2)}
-														{selectedPlayers.includes(player.name) && <span className="ml-2 text-blue-400">✓</span>}
-													</span>
-												</button>
+												<option key={player.name} value={player.name}>
+													{player.name} ({player.rating?.toFixed(2) || "N/A"})
+												</option>
 											))}
-										{searchFilteredPlayers.length === 0 && (
-											<div className="px-3 py-2 text-gray-400 text-sm">No players found</div>
-										)}
-									</div>
-								</>
-							)}
-						</div>
+									</select>
+								</div>
 
-						{comparePlayer && (
-							<button
-								onClick={() => setComparePlayer("")}
-								className="px-4 py-2 bg-red-600 hover:bg-red-500 text-white rounded-lg transition-colors"
-							>
-								Clear Comparison
-							</button>
+								<div className="relative">
+									<label className="block text-sm text-gray-400 mb-1">Filter Players</label>
+									<input
+										type="text"
+										placeholder="Search to add players..."
+										value={playerSearchQuery}
+										onChange={(e) => setPlayerSearchQuery(e.target.value)}
+										onFocus={() => setShowPlayerDropdown(true)}
+										className="px-4 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:border-blue-500 min-w-[250px]"
+									/>
+									{showPlayerDropdown && (
+										<>
+											<div 
+												className="fixed inset-0 z-10" 
+												onClick={() => setShowPlayerDropdown(false)}
+											/>
+											<div className="absolute top-full left-0 mt-1 w-full max-h-60 overflow-y-auto bg-gray-800 border border-gray-700 rounded-lg shadow-lg z-20">
+												{searchFilteredPlayers
+													.sort((a, b) => (b.rating || 0) - (a.rating || 0))
+													.slice(0, 20)
+													.map(player => (
+														<button
+															key={player.name}
+															onClick={() => {
+																togglePlayerSelection(player.name);
+															}}
+															className={`w-full px-3 py-2 text-left text-sm hover:bg-gray-700 flex items-center justify-between ${
+																selectedPlayers.includes(player.name) ? "bg-blue-900/30" : ""
+															}`}
+														>
+															<span className="text-white">{player.name}</span>
+															<span className="text-gray-400 text-xs">
+																{player.rating?.toFixed(2)}
+																{selectedPlayers.includes(player.name) && <span className="ml-2 text-blue-400">✓</span>}
+															</span>
+														</button>
+													))}
+												{searchFilteredPlayers.length === 0 && (
+													<div className="px-3 py-2 text-gray-400 text-sm">No players found</div>
+												)}
+											</div>
+										</>
+									)}
+								</div>
+
+								{comparePlayer && (
+									<button
+										onClick={() => setComparePlayer("")}
+										className="px-4 py-2 bg-red-600 hover:bg-red-500 text-white rounded-lg transition-colors"
+									>
+										Clear Comparison
+									</button>
+								)}
+
+								{selectedPlayers.length > 0 && (
+									<button
+										onClick={() => setSelectedPlayers([])}
+										className="px-4 py-2 bg-gray-600 hover:bg-gray-500 text-white rounded-lg transition-colors"
+									>
+										Clear Filter ({selectedPlayers.length})
+									</button>
+								)}
+
+								<button
+									onClick={() => setShowFilters(!showFilters)}
+									className={`px-4 py-2 rounded-lg transition-colors ${showFilters ? "bg-blue-600 hover:bg-blue-500" : "bg-gray-700 hover:bg-gray-600"} text-white`}
+								>
+									{showFilters ? "Hide Filters" : "More Filters"}
+								</button>
+							</>
 						)}
-
-						{selectedPlayers.length > 0 && (
-							<button
-								onClick={() => setSelectedPlayers([])}
-								className="px-4 py-2 bg-gray-600 hover:bg-gray-500 text-white rounded-lg transition-colors"
-							>
-								Clear Filter ({selectedPlayers.length})
-							</button>
-						)}
-
-						<button
-							onClick={() => setShowFilters(!showFilters)}
-							className={`px-4 py-2 rounded-lg transition-colors ${showFilters ? "bg-blue-600 hover:bg-blue-500" : "bg-gray-700 hover:bg-gray-600"} text-white`}
-						>
-							{showFilters ? "Hide Filters" : "More Filters"}
-						</button>
 					</div>
 
-					{showFilters && (
+					{statsSource === "csc" && showFilters && (
 						<div className="mt-4 p-4 bg-gray-800 rounded-lg border border-gray-700">
 							<h3 className="text-sm font-bold text-white mb-3">Filters & Sorting</h3>
 							<div className="flex flex-wrap gap-4 items-end">
@@ -574,11 +628,11 @@ export function TableView() {
 										+ Save Current
 									</button>
 								</div>
-								{parsedPresets.length === 0 ? (
+								{cscPresets.length === 0 ? (
 									<p className="text-gray-500 text-sm">No saved presets. Click "Save Current" to save your current filters and sorting.</p>
 								) : (
 									<div className="flex flex-wrap gap-2">
-										{parsedPresets.map(preset => (
+										{cscPresets.map(preset => (
 											<div key={preset.name} className="inline-flex items-center gap-1 bg-gray-700 rounded-lg overflow-hidden">
 												<button
 													onClick={() => loadPreset(preset)}
@@ -725,7 +779,7 @@ export function TableView() {
 						</div>
 					)}
 
-					{selectedPlayers.length > 0 && (
+					{statsSource === "csc" && selectedPlayers.length > 0 && (
 						<div className="mt-3 flex flex-wrap gap-2">
 							<span className="text-gray-400 text-sm">Showing:</span>
 							{selectedPlayers.map(name => (
@@ -745,7 +799,7 @@ export function TableView() {
 						</div>
 					)}
 
-					{comparePlayer && comparePlayerStats && (
+					{statsSource === "csc" && comparePlayer && comparePlayerStats && (
 						<div className="mt-4 p-3 bg-blue-900/30 border border-blue-600 rounded-lg">
 							<span className="text-blue-200 text-sm">
 								Comparing all players to: <strong>{comparePlayer}</strong> (Rating: {comparePlayerStats.rating?.toFixed(2)})
@@ -754,6 +808,19 @@ export function TableView() {
 					)}
 				</div>
 
+				{/* Extended Stats Table */}
+				{statsSource === "extended" ? (
+					<ExtendedStatsTable
+						players={extendedStatsByTier[selectedTier] || []}
+						selectedTier={selectedTier}
+						playersData={playersData}
+						colorblindMode={colorblindMode === "true"}
+						colorblindColors={colorblindColors}
+						savedFilterPresets={savedFilterPresets}
+						setSavedFilterPresets={setSavedFilterPresets}
+					/>
+				) : (
+				<>
 				<div className="mb-4 p-3 bg-gray-800 rounded-lg border border-gray-700">
 					<h3 className="text-sm font-bold text-white mb-2">Color Legend</h3>
 					<div className="flex gap-6 text-sm">
@@ -932,6 +999,8 @@ export function TableView() {
 						</span>
 					)}
 				</div>
+				</>
+				)}
 			</div>
 		</div>
 	);
