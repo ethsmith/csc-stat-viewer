@@ -215,6 +215,14 @@ export function DraftList() {
 		});
 	}, [statsCache]);
 
+	// Get a player's actual current tier from player data (not stats - stats are historical)
+	const getPlayerActualTier = React.useCallback((playerName: string): string | null => {
+		if (!playersData) return null;
+		const lowerName = playerName.toLowerCase();
+		const player = playersData.find(p => p.name.toLowerCase() === lowerName);
+		return player?.tier?.name || null;
+	}, [playersData]);
+
 	React.useEffect(() => {
 		if (availableTiers.length > 0 && !selectedTier) {
 			setSelectedTier(availableTiers[0]);
@@ -1085,12 +1093,15 @@ export function DraftList() {
 										const statusKnown = isDrafted !== undefined;
 										const scoutingNote = getScoutingNote(playerName, selectedTier);
 										const hasScoutingData = scoutingNote && (scoutingNote.playstyle || scoutingNote.role || scoutingNote.commsRating || scoutingNote.notes);
+										const actualTier = getPlayerActualTier(playerName);
+										// Tier mismatch if player is in a different tier, OR if player is no longer found in any tier
+										const tierMismatch = actualTier !== selectedTier;
 										
 										return (
 											<div
 												key={playerName}
 												className={`px-4 py-3 hover:bg-gray-750 transition-all ${
-													isDrafted ? "bg-red-900/20" : ""
+													tierMismatch ? "bg-orange-900/30 border-l-4 border-orange-500" : isDrafted ? "bg-red-900/20" : ""
 												}`}
 											>
 												<div className="flex items-center gap-3">
@@ -1101,12 +1112,18 @@ export function DraftList() {
 
 													{/* Player Info */}
 													<div className="flex-1 min-w-0">
-														<div className={`font-medium ${isDrafted ? "text-gray-500 line-through" : "text-white"}`}>
+														<div className={`font-medium ${tierMismatch ? "text-orange-400" : isDrafted ? "text-gray-500 line-through" : "text-white"}`}>
 															{playerName}
 															{hasScoutingData && (
 																<span className="ml-2 text-xs text-cyan-400" title="Has scouting notes">📋</span>
 															)}
 														</div>
+														{tierMismatch && (
+															<div className="text-xs font-semibold text-orange-400 flex items-center gap-1">
+																<span>⚠️</span>
+																<span>{actualTier ? `Now in ${actualTier}` : "No longer in any tier"} - Cannot draft in {selectedTier}</span>
+															</div>
+														)}
 														<div className="text-xs text-gray-500">
 															{playerStats && <>Rating: {playerStats.rating?.toFixed(2)} | </>}
 															{ecoRatingMap[playerName.toLowerCase()] !== undefined && <>Eco: {ecoRatingMap[playerName.toLowerCase()]?.toFixed(2)}{playerStats && " | "}</>}
