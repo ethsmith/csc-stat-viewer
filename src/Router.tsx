@@ -25,6 +25,7 @@ import {
 	ScoutingNotes,
 	TableView,
 	DraftList,
+	TeamVisualizer,
 } from "./pages";
 import { ArticleRoutes } from "./pages/articles/routes";
 import { useDataContext } from "./DataContext";
@@ -117,6 +118,7 @@ export function Router() {
 		{ path: `/dashboard/scouting`, component: () => <ScoutingNotes /> },
 		{ path: `/dashboard/table`, component: () => <TableView /> },
 		{ path: `/dashboard/draft-list`, component: () => <DraftList /> },
+		{ path: `/dashboard/team-visualizer`, component: () => <TeamVisualizer /> },
 		{ path: `/franchiseManagement`, component: () => <FranchiseManagement /> },
 	].concat(articleRoutes);
 

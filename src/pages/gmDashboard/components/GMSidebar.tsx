@@ -6,7 +6,7 @@ import { ColorblindColors, DEFAULT_COLORBLIND_COLORS } from "../utils";
 
 interface GMSidebarProps {
 	currentFranchise: Franchise | undefined;
-	currentPage: "dashboard" | "targets" | "scouting" | "tableview" | "draftlist";
+	currentPage: "dashboard" | "targets" | "scouting" | "tableview" | "draftlist" | "teamvisualizer";
 	onExport: () => void;
 	onImport: () => void;
 	onChangeFranchise: () => void;
@@ -125,6 +125,19 @@ export function GMSidebar({
 							<path fillRule="evenodd" d="M4 5a2 2 0 012-2 3 3 0 003 3h2a3 3 0 003-3 2 2 0 012 2v11a2 2 0 01-2 2H6a2 2 0 01-2-2V5zm3 4a1 1 0 000 2h.01a1 1 0 100-2H7zm3 0a1 1 0 000 2h3a1 1 0 100-2h-3zm-3 4a1 1 0 100 2h.01a1 1 0 100-2H7zm3 0a1 1 0 100 2h3a1 1 0 100-2h-3z" clipRule="evenodd" />
 						</svg>
 						<span className="font-medium">Draft List</span>
+					</button>
+				</Link>
+
+				<Link href="/dashboard/team-visualizer">
+					<button className={`w-full flex items-center gap-3 px-4 py-3 text-left rounded-lg transition-colors ${
+						currentPage === "teamvisualizer"
+							? "text-white bg-blue-600 hover:bg-blue-500"
+							: "text-gray-300 hover:text-white hover:bg-gray-700"
+					}`}>
+						<svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+							<path d="M13 6a3 3 0 11-6 0 3 3 0 016 0zM18 8a2 2 0 11-4 0 2 2 0 014 0zM14 15a4 4 0 00-8 0v3h8v-3zM6 8a2 2 0 11-4 0 2 2 0 014 0zM16 18v-3a5.972 5.972 0 00-.75-2.906A3.005 3.005 0 0119 15v3h-3zM4.75 12.094A5.973 5.973 0 004 15v3H1v-3a3 3 0 013.75-2.906z" />
+						</svg>
+						<span className="font-medium">Team Visualizer</span>
 					</button>
 				</Link>
 
