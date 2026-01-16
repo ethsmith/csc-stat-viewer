@@ -55,6 +55,8 @@ export function TableView() {
 	const [showSavePresetModal, setShowSavePresetModal] = React.useState(false);
 	const [newPresetName, setNewPresetName] = React.useState("");
 	const [statsSource, setStatsSource] = React.useState<"csc" | "extended">("csc");
+	const [statFilterSearchQuery, setStatFilterSearchQuery] = React.useState("");
+	const [activeStatFilterIndex, setActiveStatFilterIndex] = React.useState<number | null>(null);
 	const fileInputRef = React.useRef<HTMLInputElement>(null);
 
 	const { 
@@ -715,30 +717,133 @@ export function TableView() {
 									<div className="space-y-2">
 										{statFilters.map((filter, index) => (
 											<div key={index} className="flex items-center gap-2 flex-wrap">
-												<select
-													value={filter.stat}
-													onChange={(e) => {
-														const newFilters = [...statFilters];
-														newFilters[index] = { ...filter, stat: e.target.value as ExtendedFilterStat };
-														setStatFilters(newFilters);
-													}}
-													className="px-3 py-1.5 bg-gray-700 border border-gray-600 rounded-lg text-white text-sm focus:outline-none focus:border-blue-500"
-												>
-													<option value="ecoRating">Eco Rating</option>
-													<optgroup label="Map Ratings">
-														{mapNames.map(mapName => (
-															<option key={`mapRating_${mapName}`} value={`mapRating_${mapName}`}>{formatMapName(mapName)} Rating</option>
-														))}
-													</optgroup>
-													<optgroup label="Map Games Played">
-														{mapNames.map(mapName => (
-															<option key={`mapGames_${mapName}`} value={`mapGames_${mapName}`}>{formatMapName(mapName)} Games</option>
-														))}
-													</optgroup>
-													{ALL_STATS.map(stat => (
-														<option key={stat.key} value={stat.key}>{stat.label}</option>
-													))}
-												</select>
+												{/* Searchable Stat Dropdown */}
+												<div className="relative">
+													<input
+														type="text"
+														value={activeStatFilterIndex === index ? statFilterSearchQuery : ""}
+														onChange={(e) => {
+															setStatFilterSearchQuery(e.target.value);
+															setActiveStatFilterIndex(index);
+														}}
+														onFocus={() => setActiveStatFilterIndex(index)}
+														placeholder={(() => {
+															if (filter.stat === "ecoRating") return "Eco Rating";
+															if (filter.stat.startsWith("mapRating_")) return `${formatMapName(filter.stat.replace("mapRating_", "") as MapName)} Rating`;
+															if (filter.stat.startsWith("mapGames_")) return `${formatMapName(filter.stat.replace("mapGames_", "") as MapName)} Games`;
+															return ALL_STATS.find(s => s.key === filter.stat)?.label || filter.stat;
+														})()}
+														className="px-3 py-1.5 bg-gray-700 border border-gray-600 rounded-lg text-white text-sm focus:outline-none focus:border-blue-500 min-w-[180px] placeholder-gray-300"
+													/>
+													{activeStatFilterIndex === index && (
+														<>
+															<div
+																className="fixed inset-0 z-40"
+																onClick={() => {
+																	setActiveStatFilterIndex(null);
+																	setStatFilterSearchQuery("");
+																}}
+															/>
+															<div className="absolute top-full left-0 mt-1 w-full max-h-60 overflow-y-auto bg-gray-800 border border-gray-700 rounded-lg shadow-lg z-50">
+																{(() => {
+																	const query = statFilterSearchQuery.toLowerCase();
+																	const matchingStats = ALL_STATS.filter(s => s.label.toLowerCase().includes(query) || s.key.toLowerCase().includes(query));
+																	const matchingMapRatings = mapNames.filter(m => formatMapName(m).toLowerCase().includes(query) || "rating".includes(query));
+																	const matchingMapGames = mapNames.filter(m => formatMapName(m).toLowerCase().includes(query) || "games".includes(query));
+																	const showEcoRating = "eco rating".includes(query) || "ecorating".includes(query);
+																	
+																	const hasResults = showEcoRating || matchingMapRatings.length > 0 || matchingMapGames.length > 0 || matchingStats.length > 0;
+																	
+																	if (!hasResults && query) {
+																		return <div className="px-3 py-2 text-gray-500 text-sm">No stats found</div>;
+																	}
+																	
+																	return (
+																		<>
+																			{(showEcoRating || !query) && (
+																				<button
+																					onClick={() => {
+																						const newFilters = [...statFilters];
+																						newFilters[index] = { ...filter, stat: "ecoRating" };
+																						setStatFilters(newFilters);
+																						setActiveStatFilterIndex(null);
+																						setStatFilterSearchQuery("");
+																					}}
+																					className={`w-full px-3 py-2 text-left text-sm hover:bg-gray-700 text-white ${filter.stat === "ecoRating" ? "bg-blue-900/30" : ""}`}
+																				>
+																					Eco Rating
+																				</button>
+																			)}
+																			{(matchingMapRatings.length > 0 || !query) && (
+																				<>
+																					<div className="px-3 py-1 text-xs font-semibold text-gray-500 bg-gray-750">Map Ratings</div>
+																					{(query ? matchingMapRatings : mapNames).map(mapName => (
+																						<button
+																							key={`mapRating_${mapName}`}
+																							onClick={() => {
+																								const newFilters = [...statFilters];
+																								newFilters[index] = { ...filter, stat: `mapRating_${mapName}` as ExtendedFilterStat };
+																								setStatFilters(newFilters);
+																								setActiveStatFilterIndex(null);
+																								setStatFilterSearchQuery("");
+																							}}
+																							className={`w-full px-3 py-2 text-left text-sm hover:bg-gray-700 text-white ${filter.stat === `mapRating_${mapName}` ? "bg-blue-900/30" : ""}`}
+																						>
+																							{formatMapName(mapName)} Rating
+																						</button>
+																					))}
+																				</>
+																			)}
+																			{(matchingMapGames.length > 0 || !query) && (
+																				<>
+																					<div className="px-3 py-1 text-xs font-semibold text-gray-500 bg-gray-750">Map Games Played</div>
+																					{(query ? matchingMapGames : mapNames).map(mapName => (
+																						<button
+																							key={`mapGames_${mapName}`}
+																							onClick={() => {
+																								const newFilters = [...statFilters];
+																								newFilters[index] = { ...filter, stat: `mapGames_${mapName}` as ExtendedFilterStat };
+																								setStatFilters(newFilters);
+																								setActiveStatFilterIndex(null);
+																								setStatFilterSearchQuery("");
+																							}}
+																							className={`w-full px-3 py-2 text-left text-sm hover:bg-gray-700 text-white ${filter.stat === `mapGames_${mapName}` ? "bg-blue-900/30" : ""}`}
+																						>
+																							{formatMapName(mapName)} Games
+																						</button>
+																					))}
+																				</>
+																			)}
+																			{(matchingStats.length > 0 || !query) && (
+																				<>
+																					<div className="px-3 py-1 text-xs font-semibold text-gray-500 bg-gray-750">CSC Stats</div>
+																					{(query ? matchingStats : ALL_STATS).slice(0, 20).map(stat => (
+																						<button
+																							key={stat.key}
+																							onClick={() => {
+																								const newFilters = [...statFilters];
+																								newFilters[index] = { ...filter, stat: stat.key as ExtendedFilterStat };
+																								setStatFilters(newFilters);
+																								setActiveStatFilterIndex(null);
+																								setStatFilterSearchQuery("");
+																							}}
+																							className={`w-full px-3 py-2 text-left text-sm hover:bg-gray-700 text-white ${filter.stat === stat.key ? "bg-blue-900/30" : ""}`}
+																						>
+																							{stat.label}
+																						</button>
+																					))}
+																					{!query && ALL_STATS.length > 20 && (
+																						<div className="px-3 py-1 text-xs text-gray-500">Type to search more stats...</div>
+																					)}
+																				</>
+																			)}
+																		</>
+																	);
+																})()}
+															</div>
+														</>
+													)}
+												</div>
 												<select
 													value={filter.operator}
 													onChange={(e) => {

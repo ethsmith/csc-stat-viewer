@@ -188,6 +188,7 @@ export const EXTENDED_STATS_COLUMNS: Array<{ key: keyof ExtendedPlayerStats; lab
 	{ key: "opening_successes", label: "Opening Successes", category: "Opening" },
 	{ key: "opening_kills_per_round", label: "OK/Round", category: "Opening" },
 	{ key: "opening_deaths_per_round", label: "OD/Round", category: "Opening" },
+	{ key: "opening_attempts_pct", label: "Opening Attempts %", category: "Opening" },
 	{ key: "opening_success_pct", label: "Opening Success %", category: "Opening" },
 	{ key: "win_pct_after_opening_kill", label: "Win % After OK", category: "Opening" },
 	

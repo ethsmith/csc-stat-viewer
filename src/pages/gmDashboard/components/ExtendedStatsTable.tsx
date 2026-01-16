@@ -57,6 +57,8 @@ export function ExtendedStatsTable({
 	const [playerSearchQuery, setPlayerSearchQuery] = React.useState("");
 	const [selectedPlayers, setSelectedPlayers] = React.useState<string[]>([]);
 	const [showPlayerDropdown, setShowPlayerDropdown] = React.useState(false);
+	const [statFilterSearchQuery, setStatFilterSearchQuery] = React.useState("");
+	const [activeStatFilterIndex, setActiveStatFilterIndex] = React.useState<number | null>(null);
 
 	// Get columns for selected category
 	const visibleColumns = React.useMemo(() => {
@@ -541,28 +543,107 @@ export function ExtendedStatsTable({
 							<div className="space-y-2">
 								{statFilters.map((filter, index) => (
 									<div key={index} className="flex items-center gap-2 flex-wrap">
-										<select
-											value={filter.stat}
-											onChange={(e) => {
-												const newFilters = [...statFilters];
-												newFilters[index] = { ...filter, stat: e.target.value as ExtendedFilterStat };
-												setStatFilters(newFilters);
-											}}
-											className="px-3 py-1.5 bg-gray-700 border border-gray-600 rounded-lg text-white text-sm focus:outline-none focus:border-blue-500"
-										>
-											{EXTENDED_STATS_CATEGORIES.map(cat => (
-												<optgroup key={cat} label={cat}>
-													{EXTENDED_STATS_COLUMNS.filter(c => c.category === cat).map(col => (
-														<option key={col.key} value={col.key}>{col.label}</option>
-													))}
-												</optgroup>
-											))}
-											<optgroup label="Map Ratings">
-												{MAP_NAMES.map(mapName => (
-													<option key={`mapRating_${mapName}`} value={`mapRating_${mapName}`}>{formatMapName(mapName)} Rating</option>
-												))}
-											</optgroup>
-										</select>
+										{/* Searchable Stat Dropdown */}
+										<div className="relative">
+											<input
+												type="text"
+												value={activeStatFilterIndex === index ? statFilterSearchQuery : ""}
+												onChange={(e) => {
+													setStatFilterSearchQuery(e.target.value);
+													setActiveStatFilterIndex(index);
+												}}
+												onFocus={() => setActiveStatFilterIndex(index)}
+												placeholder={(() => {
+													if (filter.stat.startsWith("mapRating_")) return `${formatMapName(filter.stat.replace("mapRating_", "") as MapName)} Rating`;
+													if (filter.stat.startsWith("mapGames_")) return `${formatMapName(filter.stat.replace("mapGames_", "") as MapName)} Games`;
+													return EXTENDED_STATS_COLUMNS.find(c => c.key === filter.stat)?.label || filter.stat;
+												})()}
+												className="px-3 py-1.5 bg-gray-700 border border-gray-600 rounded-lg text-white text-sm focus:outline-none focus:border-blue-500 min-w-[180px] placeholder-gray-300"
+											/>
+											{activeStatFilterIndex === index && (
+												<>
+													<div
+														className="fixed inset-0 z-40"
+														onClick={() => {
+															setActiveStatFilterIndex(null);
+															setStatFilterSearchQuery("");
+														}}
+													/>
+													<div className="absolute top-full left-0 mt-1 w-72 max-h-60 overflow-y-auto bg-gray-800 border border-gray-700 rounded-lg shadow-lg z-50">
+														{(() => {
+															const query = statFilterSearchQuery.toLowerCase();
+															const matchingColumns = EXTENDED_STATS_COLUMNS.filter(c => 
+																c.label.toLowerCase().includes(query) || c.key.toLowerCase().includes(query)
+															);
+															const matchingMapRatings = MAP_NAMES.filter(m => 
+																formatMapName(m).toLowerCase().includes(query) || "rating".includes(query)
+															);
+															
+															const hasResults = matchingColumns.length > 0 || matchingMapRatings.length > 0;
+															
+															if (!hasResults && query) {
+																return <div className="px-3 py-2 text-gray-500 text-sm">No stats found</div>;
+															}
+															
+															// Group matching columns by category
+															const groupedColumns: Record<string, typeof matchingColumns> = {};
+															(query ? matchingColumns : EXTENDED_STATS_COLUMNS).forEach(col => {
+																if (!groupedColumns[col.category]) groupedColumns[col.category] = [];
+																groupedColumns[col.category].push(col);
+															});
+															
+															return (
+																<>
+																	{EXTENDED_STATS_CATEGORIES.filter(cat => groupedColumns[cat]?.length > 0).map(cat => (
+																		<React.Fragment key={cat}>
+																			<div className="px-3 py-1 text-xs font-semibold text-gray-500 bg-gray-750 sticky top-0">{cat}</div>
+																			{groupedColumns[cat].slice(0, query ? 50 : 10).map(col => (
+																				<button
+																					key={col.key}
+																					onClick={() => {
+																						const newFilters = [...statFilters];
+																						newFilters[index] = { ...filter, stat: col.key as ExtendedFilterStat };
+																						setStatFilters(newFilters);
+																						setActiveStatFilterIndex(null);
+																						setStatFilterSearchQuery("");
+																					}}
+																					className={`w-full px-3 py-2 text-left text-sm hover:bg-gray-700 text-white ${filter.stat === col.key ? "bg-blue-900/30" : ""}`}
+																				>
+																					{col.label}
+																				</button>
+																			))}
+																		</React.Fragment>
+																	))}
+																	{(matchingMapRatings.length > 0 || !query) && (
+																		<>
+																			<div className="px-3 py-1 text-xs font-semibold text-gray-500 bg-gray-750 sticky top-0">Map Ratings</div>
+																			{(query ? matchingMapRatings : MAP_NAMES).map(mapName => (
+																				<button
+																					key={`mapRating_${mapName}`}
+																					onClick={() => {
+																						const newFilters = [...statFilters];
+																						newFilters[index] = { ...filter, stat: `mapRating_${mapName}` as ExtendedFilterStat };
+																						setStatFilters(newFilters);
+																						setActiveStatFilterIndex(null);
+																						setStatFilterSearchQuery("");
+																					}}
+																					className={`w-full px-3 py-2 text-left text-sm hover:bg-gray-700 text-white ${filter.stat === `mapRating_${mapName}` ? "bg-blue-900/30" : ""}`}
+																				>
+																					{formatMapName(mapName)} Rating
+																				</button>
+																			))}
+																		</>
+																	)}
+																	{!query && (
+																		<div className="px-3 py-1 text-xs text-gray-500">Type to search more stats...</div>
+																	)}
+																</>
+															);
+														})()}
+													</div>
+												</>
+											)}
+										</div>
 										<select
 											value={filter.operator}
 											onChange={(e) => {
