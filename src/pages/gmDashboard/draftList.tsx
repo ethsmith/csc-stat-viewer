@@ -328,8 +328,17 @@ export function DraftList() {
 
 	const tierPlayers: CscStats[] = React.useMemo(() => {
 		if (!statsCache?.data || !selectedTier) return [];
-		return statsCache.data[selectedTier as keyof typeof statsCache.data] || [];
-	}, [statsCache, selectedTier]);
+		const players = statsCache.data[selectedTier as keyof typeof statsCache.data] || [];
+		// Filter to only show players still in the selected tier
+		if (!playersData) return players;
+		return players.filter(p => {
+			const playerData = playersData.find(pd => pd.name.toLowerCase() === p.name.toLowerCase());
+			if (playerData?.tier?.name) {
+				return playerData.tier.name === selectedTier;
+			}
+			return true; // Keep players not found in playersData (shouldn't happen normally)
+		});
+	}, [statsCache, selectedTier, playersData]);
 
 	// Extended stats tier players - filtered to only show players in their current tier
 	const extendedTierPlayers: ExtendedPlayerStats[] = React.useMemo(() => {
