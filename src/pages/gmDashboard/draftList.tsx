@@ -376,8 +376,8 @@ export function DraftList() {
 				   playerType !== PlayerTypes.SPECTATOR;
 		});
 
-		// Apply preset filters if one is selected
-		if (activePreset) {
+		// Apply preset filters if one is selected (only for CSC presets, not extended stats presets)
+		if (activePreset && activePreset.statsSource !== "extended") {
 			// Team filter
 			if (activePreset.teamFilter) {
 				players = players.filter(p => getPlayerTeamDisplay(p.name, p.team, playersData) === activePreset.teamFilter);
@@ -429,7 +429,7 @@ export function DraftList() {
 
 		// Sort: if preset has sorting, use it; otherwise use availability + rating
 		let sorted = [...players];
-		if (activePreset) {
+		if (activePreset && activePreset.statsSource !== "extended") {
 			sorted.sort((a, b) => {
 				let aVal: string | number | undefined;
 				let bVal: string | number | undefined;
@@ -474,7 +474,7 @@ export function DraftList() {
 				
 				return activePreset.sortDirection === "asc" ? comparison : -comparison;
 			});
-		} else {
+		} else if (!activePreset || activePreset.statsSource === "extended") {
 			// Default: Sort by availability first (Available, Unknown, Drafted), then by rating descending
 			sorted.sort((a, b) => {
 				const aStatus = draftStatusMap[a.name.toLowerCase()];
@@ -672,8 +672,8 @@ export function DraftList() {
 			return { playerName, stats };
 		});
 		
-		// Apply preset filters and sorting if one is selected
-		if (activePreset) {
+		// Apply preset filters and sorting if one is selected (only for CSC presets, not extended stats presets)
+		if (activePreset && activePreset.statsSource !== "extended") {
 			// Team filter
 			if (activePreset.teamFilter) {
 				playersWithStats = playersWithStats.filter(({ playerName, stats }) => 
