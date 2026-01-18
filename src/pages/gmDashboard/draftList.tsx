@@ -597,6 +597,25 @@ export function DraftList() {
 		return sorted;
 	}, [extendedTierPlayers, searchQuery, showDraftedOnly, draftStatusMap, playerTypeMap, activePreset, playersData]);
 
+	// Unified display list: use extended stats players when extended preset is selected, otherwise CSC stats
+	// Using a simpler type that contains only the fields we actually use for display
+	type DisplayPlayer = { name: string; rating?: number; team?: string };
+	const displayPlayers: DisplayPlayer[] = React.useMemo(() => {
+		if (activePreset?.statsSource === "extended") {
+			// Convert extended stats players to display format
+			return filteredExtendedPlayers.map(p => ({
+				name: p.name,
+				rating: p.final_rating,
+				team: undefined,
+			}));
+		}
+		return filteredPlayers.map(p => ({
+			name: p.name,
+			rating: p.rating,
+			team: p.team,
+		}));
+	}, [activePreset, filteredExtendedPlayers, filteredPlayers]);
+
 	// Find similar players based on tracked stats
 	const similarPlayers = React.useMemo(() => {
 		if (!similarPlayerTarget) return [];
@@ -1003,8 +1022,11 @@ export function DraftList() {
 							<h2 className="text-lg font-semibold text-white">
 								{selectedTier} Players
 								<span className="ml-2 text-sm font-normal text-gray-400">
-									({filteredPlayers.length} players)
+									({displayPlayers.length} players)
 								</span>
+								{activePreset?.statsSource === "extended" && (
+									<span className="ml-2 text-xs text-purple-400">(Extended Stats)</span>
+								)}
 							</h2>
 						</div>
 						<div className="overflow-y-auto max-h-[600px]">
@@ -1021,14 +1043,14 @@ export function DraftList() {
 									</tr>
 								</thead>
 								<tbody className="divide-y divide-gray-700">
-									{filteredPlayers.length === 0 ? (
+									{displayPlayers.length === 0 ? (
 										<tr>
 											<td colSpan={7} className="px-4 py-8 text-center text-gray-400">
 												No players found
 											</td>
 										</tr>
 									) : (
-										filteredPlayers.map(player => {
+										displayPlayers.map(player => {
 											const isDrafted = draftStatusMap[player.name.toLowerCase()];
 											const statusKnown = isDrafted !== undefined;
 											const isInMyList = isPlayerInMyDraftList(player.name);
@@ -1148,7 +1170,9 @@ export function DraftList() {
 																	<span className="text-gray-500">No stats being tracked. Configure in Set Targets.</span>
 																) : (
 																	trackedStats.map(stat => {
-																		const value = player[stat.key] as number | undefined;
+																		// Look up full stats from tierPlayers since displayPlayers only has minimal fields
+																		const fullPlayerStats = tierPlayers.find(p => p.name === player.name);
+																		const value = fullPlayerStats?.[stat.key as keyof CscStats] as number | undefined;
 																		return (
 																			<div key={stat.key} className="flex items-center gap-1">
 																				<span className="text-gray-400">{stat.label}:</span>
