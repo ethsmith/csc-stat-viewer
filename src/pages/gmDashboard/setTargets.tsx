@@ -37,6 +37,7 @@ export function SetTargets() {
 	const [scoutingNotes, setScoutingNotes] = useLocalStorage("scoutingNotes", "{}");
 	const [tableViewFilterPresets, setTableViewFilterPresets] = useLocalStorage("tableViewFilterPresets", "[]");
 	const [myDraftList, setMyDraftList] = useLocalStorage("myDraftListByTier", "{}");
+	const [savedLineups, setSavedLineups] = useLocalStorage("teamVisualizerLineups", "[]");
 	const [, setLocation] = useLocation();
 	const fileInputRef = React.useRef<HTMLInputElement>(null);
 	
@@ -123,7 +124,7 @@ export function SetTargets() {
 
 
 	const handleExport = () => {
-		handleExportSettings(selectedFranchise, playerTargets, playerRoles, selectedStats, sectionOrder, hiddenSections, collapsedSections, scoutingNotes, colorblindMode, colorblindColors, tableViewFilterPresets, myDraftList);
+		handleExportSettings(selectedFranchise, playerTargets, playerRoles, selectedStats, sectionOrder, hiddenSections, collapsedSections, scoutingNotes, colorblindMode, colorblindColors, tableViewFilterPresets, myDraftList, savedLineups);
 	};
 
 	const handleImportSettings = createImportHandler(
@@ -138,7 +139,8 @@ export function SetTargets() {
 		setColorblindMode,
 		setColorblindColors,
 		setTableViewFilterPresets,
-		setMyDraftList
+		setMyDraftList,
+		setSavedLineups
 	);
 
 	const handleImportClick = () => {

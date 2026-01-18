@@ -43,6 +43,7 @@ export function DraftList() {
 		scoutingNotes, setScoutingNotes,
 		tableViewFilterPresets, setTableViewFilterPresets,
 		myDraftList, setMyDraftList,
+		savedLineups, setSavedLineups,
 	} = useGMSettings();
 
 	// Local state
@@ -840,7 +841,8 @@ export function DraftList() {
 			colorblindMode,
 			colorblindColors,
 			tableViewFilterPresets,
-			myDraftList
+			myDraftList,
+			savedLineups
 		);
 	};
 
@@ -860,7 +862,8 @@ export function DraftList() {
 		setColorblindMode,
 		setColorblindColors,
 		setTableViewFilterPresets,
-		setMyDraftList
+		setMyDraftList,
+		setSavedLineups
 	);
 
 	const handleClearFranchise = () => {

@@ -332,7 +332,8 @@ export const handleExportSettings = (
 	colorblindMode?: string,
 	colorblindColors?: string,
 	tableViewFilterPresets?: string,
-	myDraftList?: string
+	myDraftList?: string,
+	teamVisualizerLineups?: string
 ) => {
 	const exportData = {
 		franchise: selectedFranchise,
@@ -347,8 +348,9 @@ export const handleExportSettings = (
 		colorblindColors: colorblindColors,
 		tableViewFilterPresets: tableViewFilterPresets,
 		myDraftListByTier: myDraftList,
+		teamVisualizerLineups: teamVisualizerLineups,
 		exportDate: new Date().toISOString(),
-		version: "1.6"
+		version: "1.7"
 	};
 
 	const dataStr = JSON.stringify(exportData, null, 2);
@@ -375,7 +377,8 @@ export const createImportHandler = (
 	setColorblindMode?: (value: string) => void,
 	setColorblindColors?: (value: string) => void,
 	setTableViewFilterPresets?: (value: string) => void,
-	setMyDraftList?: (value: string) => void
+	setMyDraftList?: (value: string) => void,
+	setTeamVisualizerLineups?: (value: string) => void
 ) => {
 	return (event: React.ChangeEvent<HTMLInputElement>) => {
 		const file = event.target.files?.[0];
@@ -422,6 +425,9 @@ export const createImportHandler = (
 				}
 				if (importData.myDraftListByTier && setMyDraftList) {
 					setMyDraftList(importData.myDraftListByTier);
+				}
+				if (importData.teamVisualizerLineups && setTeamVisualizerLineups) {
+					setTeamVisualizerLineups(importData.teamVisualizerLineups);
 				}
 
 				alert('Settings imported successfully!');

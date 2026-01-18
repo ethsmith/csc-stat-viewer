@@ -26,6 +26,9 @@ export function useGMSettings() {
 	
 	// Table view
 	const [tableViewFilterPresets, setTableViewFilterPresets] = useLocalStorage("tableViewFilterPresets", "[]");
+	
+	// Team visualizer
+	const [savedLineups, setSavedLineups] = useLocalStorage("teamVisualizerLineups", "[]");
 
 	return {
 		// Core settings
@@ -61,5 +64,9 @@ export function useGMSettings() {
 		// Table view
 		tableViewFilterPresets,
 		setTableViewFilterPresets,
+		
+		// Team visualizer
+		savedLineups,
+		setSavedLineups,
 	};
 }

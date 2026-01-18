@@ -51,6 +51,7 @@ export function Dashboard() {
 	const [colorblindColors, setColorblindColors] = useLocalStorage("colorblindColors", JSON.stringify({ good: "#22d3ee", warning: "#fb923c", bad: "#c084fc" }));
 	const [tableViewFilterPresets, setTableViewFilterPresets] = useLocalStorage("tableViewFilterPresets", "[]");
 	const [myDraftList, setMyDraftList] = useLocalStorage("myDraftListByTier", "{}");
+	const [savedLineups, setSavedLineups] = useLocalStorage("teamVisualizerLineups", "[]");
 	const [showHiddenMenu, setShowHiddenMenu] = React.useState(false);
 	const fileInputRef = React.useRef<HTMLInputElement>(null);
 	
@@ -240,7 +241,8 @@ export function Dashboard() {
 		setColorblindMode,
 		setColorblindColors,
 		setTableViewFilterPresets,
-		setMyDraftList
+		setMyDraftList,
+		setSavedLineups
 	);
 
 	const handleImportClick = () => {
@@ -248,7 +250,7 @@ export function Dashboard() {
 	};
 
 	const handleExport = () => {
-		handleExportSettings(selectedFranchise, playerTargets, playerRoles, selectedStats, sectionOrder, hiddenSections, collapsedSections, scoutingNotes, colorblindMode, colorblindColors, tableViewFilterPresets, myDraftList);
+		handleExportSettings(selectedFranchise, playerTargets, playerRoles, selectedStats, sectionOrder, hiddenSections, collapsedSections, scoutingNotes, colorblindMode, colorblindColors, tableViewFilterPresets, myDraftList, savedLineups);
 	};
 
 	const currentFranchise = franchises.find(f => f.prefix === selectedFranchise);

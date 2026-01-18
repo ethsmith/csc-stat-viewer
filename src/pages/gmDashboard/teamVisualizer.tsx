@@ -10,7 +10,6 @@ import { GMSidebar } from "./components/GMSidebar";
 import { OffSeasonBanner } from "./components/OffSeasonBanner";
 import { handleExportSettings, createImportHandler, parseColorblindColors, getPlayerTeamDisplay } from "./utils";
 import { useCscPlayersCache } from "../../dao/cscPlayerGraphQLDao";
-import { useLocalStorage } from "../../common/hooks/localStorage";
 import { useEcoRatings, MapName } from "./hooks/useEcoRatings";
 import { useExtendedStats, ExtendedPlayerStats, EXTENDED_STATS_COLUMNS } from "./hooks/useExtendedStats";
 import { useDataContext } from "../../DataContext";
@@ -61,9 +60,8 @@ export function TeamVisualizer() {
 		scoutingNotes, setScoutingNotes,
 		tableViewFilterPresets: savedFilterPresets, setTableViewFilterPresets: setSavedFilterPresets,
 		myDraftList, setMyDraftList,
+		savedLineups, setSavedLineups,
 	} = useGMSettings();
-
-	const [savedLineups, setSavedLineups] = useLocalStorage("teamVisualizerLineups", "[]");
 	const [selectedTier, setSelectedTier] = React.useState<string>("");
 	const [currentLineup, setCurrentLineup] = React.useState<string[]>([]);
 	const [lineupName, setLineupName] = React.useState("");
@@ -463,7 +461,7 @@ export function TeamVisualizer() {
 
 	
 	const handleExport = () => {
-		handleExportSettings(selectedFranchise, playerTargets, playerRoles, selectedStats, sectionOrder, hiddenSections, collapsedSections, scoutingNotes, colorblindMode, colorblindColors, savedFilterPresets, myDraftList);
+		handleExportSettings(selectedFranchise, playerTargets, playerRoles, selectedStats, sectionOrder, hiddenSections, collapsedSections, scoutingNotes, colorblindMode, colorblindColors, savedFilterPresets, myDraftList, savedLineups);
 	};
 
 	const handleImportSettings = createImportHandler(
@@ -478,7 +476,8 @@ export function TeamVisualizer() {
 		setColorblindMode,
 		setColorblindColors,
 		setSavedFilterPresets,
-		setMyDraftList
+		setMyDraftList,
+		setSavedLineups
 	);
 
 	// Get current tier's MMR cap

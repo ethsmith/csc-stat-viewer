@@ -38,6 +38,7 @@ export function TableView() {
 		scoutingNotes, setScoutingNotes,
 		tableViewFilterPresets: savedFilterPresets, setTableViewFilterPresets: setSavedFilterPresets,
 		myDraftList, setMyDraftList,
+		savedLineups, setSavedLineups,
 	} = useGMSettings();
 
 	// Local state
@@ -350,7 +351,7 @@ export function TableView() {
 	};
 
 	const handleExport = () => {
-		handleExportSettings(selectedFranchise, playerTargets, playerRoles, selectedStats, sectionOrder, hiddenSections, collapsedSections, scoutingNotes, colorblindMode, colorblindColors, savedFilterPresets, myDraftList);
+		handleExportSettings(selectedFranchise, playerTargets, playerRoles, selectedStats, sectionOrder, hiddenSections, collapsedSections, scoutingNotes, colorblindMode, colorblindColors, savedFilterPresets, myDraftList, savedLineups);
 	};
 
 	const handleImportSettings = createImportHandler(
@@ -365,7 +366,8 @@ export function TableView() {
 		setColorblindMode,
 		setColorblindColors,
 		setSavedFilterPresets,
-		setMyDraftList
+		setMyDraftList,
+		setSavedLineups
 	);
 
 	if (isLoading || isLoadingStats || isLoadingExtendedStats) {
