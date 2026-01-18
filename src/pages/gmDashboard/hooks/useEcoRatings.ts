@@ -6,9 +6,21 @@ import * as React from "react";
 const ECO_RATING_SPREADSHEET_ID = "1lcZ80NLIG2vLQvS7G3zL8tPcc6_iV24PG_V-ZmZNWHo";
 const ECO_RATING_SHEET_NAME = "ratings";
 
-// Map names from the spreadsheet
+// Map names from the spreadsheet (internal keys)
 const MAP_NAMES = ["de_nuke", "de_anubis", "de_dust2", "de_inferno", "de_overpass", "de_ancient", "de_mirage", "de_train"] as const;
 export type MapName = typeof MAP_NAMES[number];
+
+// Map display names used in spreadsheet columns (lowercase for matching)
+const MAP_COLUMN_NAMES: Record<MapName, string> = {
+	"de_nuke": "nuke",
+	"de_anubis": "anubis",
+	"de_dust2": "dust2",
+	"de_inferno": "inferno",
+	"de_overpass": "overpass",
+	"de_ancient": "ancient",
+	"de_mirage": "mirage",
+	"de_train": "train",
+};
 
 export interface MapData {
 	rating?: number;
@@ -72,9 +84,10 @@ const fetchEcoRatings = async (): Promise<EcoRating[]> => {
 	const mapGamesIndices: Record<MapName, number> = {} as Record<MapName, number>;
 	
 	MAP_NAMES.forEach(mapName => {
-		// Look for columns like "map_ratings/de_nuke" or "map_games_played/de_nuke"
-		const ratingColIndex = headers.findIndex(h => h === `map_ratings/${mapName}`);
-		const gamesColIndex = headers.findIndex(h => h === `map_games_played/${mapName}`);
+		// Look for columns like "nuke rating" or "nuke games" (headers are lowercased)
+		const colName = MAP_COLUMN_NAMES[mapName];
+		const ratingColIndex = headers.findIndex(h => h === `${colName} rating`);
+		const gamesColIndex = headers.findIndex(h => h === `${colName} games`);
 		
 		if (ratingColIndex !== -1) mapRatingIndices[mapName] = ratingColIndex;
 		if (gamesColIndex !== -1) mapGamesIndices[mapName] = gamesColIndex;
