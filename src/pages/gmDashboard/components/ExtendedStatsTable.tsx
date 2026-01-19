@@ -750,6 +750,54 @@ export function ExtendedStatsTable({
 				</div>
 			)}
 
+			{/* Tier Averages Section */}
+			{currentTierPlayers.length > 0 && (
+				<div className="mb-4 p-4 bg-gray-800 rounded-lg border border-gray-700">
+					<h3 className="text-sm font-bold text-white mb-3">{selectedTier} Tier Averages</h3>
+					<div className="flex flex-wrap gap-6">
+						{(() => {
+							const playersWithStats = currentTierPlayers.filter(p => p.kpr !== undefined && p.rounds_played > 0);
+							const avgKpr = playersWithStats.length > 0
+								? playersWithStats.reduce((sum, p) => sum + (p.kpr || 0), 0) / playersWithStats.length
+								: 0;
+							const avgDpr = playersWithStats.length > 0
+								? playersWithStats.reduce((sum, p) => sum + (p.dpr || 0), 0) / playersWithStats.length
+								: 0;
+							const avgAdr = playersWithStats.length > 0
+								? playersWithStats.reduce((sum, p) => sum + (p.adr || 0), 0) / playersWithStats.length
+								: 0;
+							const avgKast = playersWithStats.length > 0
+								? playersWithStats.reduce((sum, p) => sum + (p.kast || 0), 0) / playersWithStats.length
+								: 0;
+							
+							return (
+								<>
+									<div className="flex items-center gap-2">
+										<span className="text-gray-400 text-sm">KPR:</span>
+										<span className="text-white font-medium">{avgKpr.toFixed(2)}</span>
+									</div>
+									<div className="flex items-center gap-2">
+										<span className="text-gray-400 text-sm">DPR:</span>
+										<span className="text-white font-medium">{avgDpr.toFixed(2)}</span>
+									</div>
+									<div className="flex items-center gap-2">
+										<span className="text-gray-400 text-sm">ADR:</span>
+										<span className="text-white font-medium">{avgAdr.toFixed(1)}</span>
+									</div>
+									<div className="flex items-center gap-2">
+										<span className="text-gray-400 text-sm">KAST:</span>
+										<span className="text-white font-medium">{(avgKast * 100).toFixed(1)}%</span>
+									</div>
+									<div className="text-gray-500 text-xs ml-4">
+										Based on {playersWithStats.length} players
+									</div>
+								</>
+							);
+						})()}
+					</div>
+				</div>
+			)}
+
 			{/* Color Legend */}
 			<div className="mb-4 p-3 bg-gray-800 rounded-lg border border-gray-700">
 				<h3 className="text-sm font-bold text-white mb-2">Color Legend</h3>

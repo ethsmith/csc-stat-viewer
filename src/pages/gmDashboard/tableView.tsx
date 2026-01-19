@@ -105,28 +105,43 @@ export function TableView() {
 		return statsCache.data[selectedTier as keyof typeof statsCache.data] || [];
 	}, [statsCache, selectedTier]);
 
+	// Filter players to only show those whose CURRENT tier matches the selected tier
+	// This prevents players from appearing in multiple tier tables after promotion/demotion
+	const currentTierPlayers: CscStats[] = React.useMemo(() => {
+		if (!playersData) return tierPlayers;
+		return tierPlayers.filter(p => {
+			const playerData = playersData.find(pd => pd.name.toLowerCase() === p.name.toLowerCase());
+			// If we can find the player's current tier, only show them if it matches
+			// If we can't find them (they may have left), still show them in their stats tier
+			if (playerData?.tier?.name) {
+				return playerData.tier.name === selectedTier;
+			}
+			return true; // Keep players we can't find current tier for
+		});
+	}, [tierPlayers, playersData, selectedTier]);
+
 	const comparePlayerStats = React.useMemo(() => {
-		if (!comparePlayer || !tierPlayers.length) return null;
-		return tierPlayers.find(p => p.name === comparePlayer) || null;
-	}, [comparePlayer, tierPlayers]);
+		if (!comparePlayer || !currentTierPlayers.length) return null;
+		return currentTierPlayers.find(p => p.name === comparePlayer) || null;
+	}, [comparePlayer, currentTierPlayers]);
 
 	const searchFilteredPlayers = React.useMemo(() => {
-		if (!playerSearchQuery) return tierPlayers;
+		if (!playerSearchQuery) return currentTierPlayers;
 		const query = playerSearchQuery.toLowerCase();
-		return tierPlayers.filter(p => p.name.toLowerCase().includes(query));
-	}, [tierPlayers, playerSearchQuery]);
+		return currentTierPlayers.filter(p => p.name.toLowerCase().includes(query));
+	}, [currentTierPlayers, playerSearchQuery]);
 
 	const availableTeams = React.useMemo(() => {
 		const teams = new Set<string>();
-		tierPlayers.forEach(p => {
+		currentTierPlayers.forEach(p => {
 			const teamDisplay = getPlayerTeamDisplay(p.name, p.team, playersData);
 			if (teamDisplay) teams.add(teamDisplay);
 		});
 		return Array.from(teams).sort();
-	}, [tierPlayers, playersData]);
+	}, [currentTierPlayers, playersData]);
 
 	const filteredPlayers = React.useMemo(() => {
-		let players = tierPlayers;
+		let players = currentTierPlayers;
 		
 		// Apply selected players filter
 		if (selectedPlayers.length > 0) {
@@ -171,7 +186,7 @@ export function TableView() {
 		});
 		
 		return players;
-	}, [tierPlayers, selectedPlayers, teamFilter, minGames, statFilters, ecoRatingMap, ecoDataMap]);
+	}, [currentTierPlayers, selectedPlayers, teamFilter, minGames, statFilters, ecoRatingMap, ecoDataMap, playersData]);
 
 	const sortedPlayers = React.useMemo(() => {
 		return [...filteredPlayers].sort((a, b) => {
@@ -460,7 +475,7 @@ export function TableView() {
 										className="px-4 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white focus:outline-none focus:border-blue-500 min-w-[200px]"
 									>
 										<option value="">Select a player to compare...</option>
-										{tierPlayers
+										{currentTierPlayers
 											.sort((a, b) => (b.rating || 0) - (a.rating || 0))
 											.map(player => (
 												<option key={player.name} value={player.name}>
@@ -928,6 +943,54 @@ export function TableView() {
 					/>
 				) : (
 				<>
+				{/* Tier Averages Section */}
+				{currentTierPlayers.length > 0 && (
+					<div className="mb-4 p-4 bg-gray-800 rounded-lg border border-gray-700">
+						<h3 className="text-sm font-bold text-white mb-3">{selectedTier} Tier Averages</h3>
+						<div className="flex flex-wrap gap-6">
+							{(() => {
+								const playersWithStats = currentTierPlayers.filter(p => p.kr !== undefined && p.rounds !== undefined && p.rounds > 0);
+								const avgKpr = playersWithStats.length > 0
+									? playersWithStats.reduce((sum, p) => sum + (p.kr || 0), 0) / playersWithStats.length
+									: 0;
+								const avgDpr = playersWithStats.length > 0
+									? playersWithStats.reduce((sum, p) => sum + ((p.deaths || 0) / (p.rounds || 1)), 0) / playersWithStats.length
+									: 0;
+								const avgAdr = playersWithStats.length > 0
+									? playersWithStats.reduce((sum, p) => sum + (p.adr || 0), 0) / playersWithStats.length
+									: 0;
+								const avgKast = playersWithStats.length > 0
+									? playersWithStats.reduce((sum, p) => sum + (p.kast || 0), 0) / playersWithStats.length
+									: 0;
+								
+								return (
+									<>
+										<div className="flex items-center gap-2">
+											<span className="text-gray-400 text-sm">KPR:</span>
+											<span className="text-white font-medium">{avgKpr.toFixed(2)}</span>
+										</div>
+										<div className="flex items-center gap-2">
+											<span className="text-gray-400 text-sm">DPR:</span>
+											<span className="text-white font-medium">{avgDpr.toFixed(2)}</span>
+										</div>
+										<div className="flex items-center gap-2">
+											<span className="text-gray-400 text-sm">ADR:</span>
+											<span className="text-white font-medium">{avgAdr.toFixed(1)}</span>
+										</div>
+										<div className="flex items-center gap-2">
+											<span className="text-gray-400 text-sm">KAST:</span>
+											<span className="text-white font-medium">{(avgKast * 100).toFixed(1)}%</span>
+										</div>
+										<div className="text-gray-500 text-xs ml-4">
+											Based on {playersWithStats.length} players
+										</div>
+									</>
+								);
+							})()}
+						</div>
+					</div>
+				)}
+
 				<div className="mb-4 p-3 bg-gray-800 rounded-lg border border-gray-700">
 					<h3 className="text-sm font-bold text-white mb-2">Color Legend</h3>
 					<div className="flex gap-6 text-sm">
@@ -1099,7 +1162,7 @@ export function TableView() {
 				</div>
 
 				<div className="mt-4 text-sm text-gray-500">
-					Showing {sortedPlayers.length} of {tierPlayers.length} players in {selectedTier}
+					Showing {sortedPlayers.length} of {currentTierPlayers.length} players in {selectedTier}
 					{(teamFilter || minGames > 0 || statFilters.length > 0) && (
 						<span className="ml-2">
 							(Filtered{teamFilter && ` by ${teamFilter}`}{minGames > 0 && ` with ≥${minGames} games`}{statFilters.length > 0 && ` with ${statFilters.length} stat filter${statFilters.length > 1 ? "s" : ""}`})
