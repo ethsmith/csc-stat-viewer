@@ -613,7 +613,7 @@ export function DraftList() {
 
 	// Unified display list: use extended stats players when extended preset is selected, otherwise CSC stats
 	// Using a simpler type that contains only the fields we actually use for display
-	type DisplayPlayer = { name: string; rating?: number; team?: string };
+	type DisplayPlayer = { name: string; rating?: number; team?: string; gameCount?: number };
 	const displayPlayers: DisplayPlayer[] = React.useMemo(() => {
 		if (activePreset?.statsSource === "extended") {
 			// Convert extended stats players to display format
@@ -621,12 +621,14 @@ export function DraftList() {
 				name: p.name,
 				rating: p.final_rating,
 				team: undefined,
+				gameCount: p.games_count,
 			}));
 		}
 		return filteredPlayers.map(p => ({
 			name: p.name,
 			rating: p.rating,
 			team: p.team,
+			gameCount: p.gameCount,
 		}));
 	}, [activePreset, filteredExtendedPlayers, filteredPlayers]);
 
@@ -1053,6 +1055,7 @@ export function DraftList() {
 										<th className="px-3 py-2 text-left text-xs font-semibold text-gray-300">Player</th>
 										<th className="px-3 py-2 text-center text-xs font-semibold text-gray-300 w-14">MMR</th>
 										<th className="px-3 py-2 text-center text-xs font-semibold text-gray-300 w-16">Rating</th>
+										<th className="px-3 py-2 text-center text-xs font-semibold text-gray-300 w-12">Games</th>
 										<th className="px-3 py-2 text-center text-xs font-semibold text-gray-300 w-20">Eco Rating</th>
 										<th className="px-3 py-2 text-center text-xs font-semibold text-gray-300 w-12">Stats</th>
 										<th className="px-3 py-2 text-center text-xs font-semibold text-gray-300 w-14">Similar</th>
@@ -1062,7 +1065,7 @@ export function DraftList() {
 								<tbody className="divide-y divide-gray-700">
 									{displayPlayers.length === 0 ? (
 										<tr>
-											<td colSpan={8} className="px-4 py-8 text-center text-gray-400">
+											<td colSpan={9} className="px-4 py-8 text-center text-gray-400">
 												No players found
 											</td>
 										</tr>
@@ -1137,6 +1140,9 @@ export function DraftList() {
 													<td className="px-3 py-2 text-center text-sm text-gray-300">
 														{player.rating?.toFixed(2) || "-"}
 													</td>
+													<td className="px-3 py-2 text-center text-sm text-yellow-400">
+														{player.gameCount || "-"}
+													</td>
 													<td className="px-3 py-2 text-center text-sm text-cyan-400">
 														{ecoRatingMap[player.name.toLowerCase()]?.toFixed(2) || "-"}
 													</td>
@@ -1184,7 +1190,7 @@ export function DraftList() {
 												{/* Inline Stats Row */}
 												{statsPopupPlayer === player.name && (
 													<tr className="bg-gray-750/50">
-														<td colSpan={8} className="px-3 py-2">
+														<td colSpan={9} className="px-3 py-2">
 															<div className="flex flex-wrap gap-3 text-xs mb-2">
 																{trackedStats.length === 0 ? (
 																	<span className="text-gray-500">No stats being tracked. Configure in Set Targets.</span>
@@ -1437,6 +1443,7 @@ export function DraftList() {
 														<div className="text-xs text-gray-500">
 															{playerMmrMap[playerName] && <>MMR: <span className="text-green-400">{playerMmrMap[playerName]}</span> | </>}
 															{playerStats && <>Rating: {playerStats.rating?.toFixed(2)} | </>}
+															{playerStats && <>Games: <span className="text-yellow-400">{playerStats.gameCount || "-"}</span> | </>}
 															{ecoRatingMap[playerName.toLowerCase()] !== undefined && <>Eco: {ecoRatingMap[playerName.toLowerCase()]?.toFixed(2)}{playerStats && " | "}</>}
 															{playerStats && <>ADR: {playerStats.adr?.toFixed(1)}</>}
 														</div>
