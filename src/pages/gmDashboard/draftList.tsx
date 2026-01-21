@@ -190,6 +190,11 @@ export function DraftList() {
 		return false;
 	};
 
+	// Check if player is in the currently selected tier and list
+	const isPlayerInCurrentList = (playerName: string): boolean => {
+		return currentListPlayers.includes(playerName);
+	};
+
 	// Get which tier and list a player is in (for the draft list)
 	const getPlayerDraftListTier = (playerName: string): string | null => {
 		for (const [tier, tierLists] of Object.entries(parsedMyDraftList)) {
@@ -1073,8 +1078,8 @@ export function DraftList() {
 										displayPlayers.map(player => {
 											const isDrafted = draftStatusMap[player.name.toLowerCase()];
 											const statusKnown = isDrafted !== undefined;
-											const isInMyList = isPlayerInMyDraftList(player.name);
-											const playerDraftTier = getPlayerDraftListTier(player.name);
+											const isInCurrentList = isPlayerInCurrentList(player.name);
+											const isInAnyList = isPlayerInMyDraftList(player.name);
 											
 											return (
 												<React.Fragment key={player.name}>
@@ -1165,22 +1170,23 @@ export function DraftList() {
 														</button>
 													</td>
 													<td className="px-3 py-2 text-center whitespace-nowrap">
-														{isInMyList ? (
+														{isInCurrentList ? (
 															<button
-																onClick={() => {
-																	const listName = getPlayerDraftListName(player.name, playerDraftTier!);
-																	if (listName) removeFromMyDraftList(player.name, playerDraftTier!, listName);
-																}}
+																onClick={() => removeFromMyDraftList(player.name, selectedTier, selectedDraftListName)}
 																className="px-2 py-1 text-xs bg-red-600 hover:bg-red-700 text-white rounded transition-colors"
-																title="Remove from my list"
+																title="Remove from current list"
 															>
 																Remove
 															</button>
 														) : (
 															<button
 																onClick={() => addToMyDraftList(player.name, selectedTier, selectedDraftListName)}
-																className="px-2 py-1 text-xs bg-blue-600 hover:bg-blue-700 text-white rounded transition-colors"
-																title="Add to my draft list"
+																className={`px-2 py-1 text-xs rounded transition-colors ${
+																	isInAnyList 
+																		? "bg-yellow-600 hover:bg-yellow-700 text-white" 
+																		: "bg-blue-600 hover:bg-blue-700 text-white"
+																}`}
+																title={isInAnyList ? "Add to current list (already in another list)" : "Add to my draft list"}
 															>
 																+ Add
 															</button>
