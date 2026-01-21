@@ -366,6 +366,19 @@ export function DraftList() {
 		return map;
 	}, [playersData]);
 
+	// Create a map of player name to MMR for quick lookup
+	const playerMmrMap = React.useMemo(() => {
+		const map: Record<string, number> = {};
+		if (playersData) {
+			playersData.forEach(player => {
+				if (player.mmr) {
+					map[player.name] = player.mmr;
+				}
+			});
+		}
+		return map;
+	}, [playersData]);
+
 	// Filter players based on search and draft status filter
 	const filteredPlayers = React.useMemo(() => {
 		let players = tierPlayers;
@@ -1038,6 +1051,7 @@ export function DraftList() {
 									<tr>
 										<th className="px-3 py-2 text-left text-xs font-semibold text-gray-300 w-20">Status</th>
 										<th className="px-3 py-2 text-left text-xs font-semibold text-gray-300">Player</th>
+										<th className="px-3 py-2 text-center text-xs font-semibold text-gray-300 w-14">MMR</th>
 										<th className="px-3 py-2 text-center text-xs font-semibold text-gray-300 w-16">Rating</th>
 										<th className="px-3 py-2 text-center text-xs font-semibold text-gray-300 w-20">Eco Rating</th>
 										<th className="px-3 py-2 text-center text-xs font-semibold text-gray-300 w-12">Stats</th>
@@ -1048,7 +1062,7 @@ export function DraftList() {
 								<tbody className="divide-y divide-gray-700">
 									{displayPlayers.length === 0 ? (
 										<tr>
-											<td colSpan={7} className="px-4 py-8 text-center text-gray-400">
+											<td colSpan={8} className="px-4 py-8 text-center text-gray-400">
 												No players found
 											</td>
 										</tr>
@@ -1117,6 +1131,9 @@ export function DraftList() {
 															);
 														})()}
 													</td>
+													<td className="px-3 py-2 text-center text-sm text-green-400">
+														{playerMmrMap[player.name] || "-"}
+													</td>
 													<td className="px-3 py-2 text-center text-sm text-gray-300">
 														{player.rating?.toFixed(2) || "-"}
 													</td>
@@ -1167,7 +1184,7 @@ export function DraftList() {
 												{/* Inline Stats Row */}
 												{statsPopupPlayer === player.name && (
 													<tr className="bg-gray-750/50">
-														<td colSpan={7} className="px-3 py-2">
+														<td colSpan={8} className="px-3 py-2">
 															<div className="flex flex-wrap gap-3 text-xs mb-2">
 																{trackedStats.length === 0 ? (
 																	<span className="text-gray-500">No stats being tracked. Configure in Set Targets.</span>
@@ -1418,6 +1435,7 @@ export function DraftList() {
 															</div>
 														)}
 														<div className="text-xs text-gray-500">
+															{playerMmrMap[playerName] && <>MMR: <span className="text-green-400">{playerMmrMap[playerName]}</span> | </>}
 															{playerStats && <>Rating: {playerStats.rating?.toFixed(2)} | </>}
 															{ecoRatingMap[playerName.toLowerCase()] !== undefined && <>Eco: {ecoRatingMap[playerName.toLowerCase()]?.toFixed(2)}{playerStats && " | "}</>}
 															{playerStats && <>ADR: {playerStats.adr?.toFixed(1)}</>}
