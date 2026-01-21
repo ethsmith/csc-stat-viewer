@@ -29,6 +29,7 @@ export interface MapData {
 
 export interface EcoRating {
 	name: string;
+	tier: string;
 	ecoRating: number;
 	mapData: Record<MapName, MapData>;
 }
@@ -77,6 +78,7 @@ const fetchEcoRatings = async (): Promise<EcoRating[]> => {
 	const headers = parseCSVLine(headerLine).map(h => h.replace(/^"|"$/g, "").trim().toLowerCase());
 	
 	const nameIndex = headers.findIndex(h => h === "name");
+	const tierIndex = headers.findIndex(h => h === "tier");
 	const ratingIndex = headers.findIndex(h => h === "final_rating" || h === "final rating" || h === "finalrating");
 	
 	// Find map rating and games played column indices
@@ -111,6 +113,9 @@ const fetchEcoRatings = async (): Promise<EcoRating[]> => {
 		
 		if (values.length > nameIndex && values.length > ratingIndex) {
 			const name = values[nameIndex].replace(/^"|"$/g, "").trim();
+			const tier = tierIndex !== -1 && values.length > tierIndex 
+				? values[tierIndex].replace(/^"|"$/g, "").trim().toLowerCase() 
+				: "";
 			const ratingStr = values[ratingIndex].replace(/^"|"$/g, "").trim();
 			const ecoRating = parseFloat(ratingStr);
 			
@@ -142,7 +147,7 @@ const fetchEcoRatings = async (): Promise<EcoRating[]> => {
 					}
 				});
 				
-				ratings.push({ name, ecoRating, mapData });
+				ratings.push({ name, tier, ecoRating, mapData });
 			}
 		}
 	}
@@ -164,7 +169,27 @@ export function useEcoRatings() {
 		staleTime: 60000, // Cache for 1 minute
 	});
 
-	// Create a map for quick lookup of eco ratings by player name (lowercase)
+	// Create a map for quick lookup of eco ratings by player name and tier (key: "name:tier")
+	const ecoRatingMapByTier = React.useMemo(() => {
+		const map: Record<string, number> = {};
+		ecoRatings.forEach(player => {
+			const key = `${player.name.toLowerCase()}:${player.tier}`;
+			map[key] = player.ecoRating;
+		});
+		return map;
+	}, [ecoRatings]);
+
+	// Create a map for quick lookup of full player eco data by name and tier (key: "name:tier")
+	const ecoDataMapByTier = React.useMemo(() => {
+		const map: Record<string, EcoRating> = {};
+		ecoRatings.forEach(player => {
+			const key = `${player.name.toLowerCase()}:${player.tier}`;
+			map[key] = player;
+		});
+		return map;
+	}, [ecoRatings]);
+
+	// Legacy maps (without tier) - will use the last entry for each player
 	const ecoRatingMap = React.useMemo(() => {
 		const map: Record<string, number> = {};
 		ecoRatings.forEach(player => {
@@ -173,7 +198,6 @@ export function useEcoRatings() {
 		return map;
 	}, [ecoRatings]);
 
-	// Create a map for quick lookup of full player eco data including map stats
 	const ecoDataMap = React.useMemo(() => {
 		const map: Record<string, EcoRating> = {};
 		ecoRatings.forEach(player => {
@@ -186,6 +210,8 @@ export function useEcoRatings() {
 		ecoRatings,
 		ecoRatingMap,
 		ecoDataMap,
+		ecoRatingMapByTier,
+		ecoDataMapByTier,
 		mapNames: MAP_NAMES,
 		isLoading,
 		error

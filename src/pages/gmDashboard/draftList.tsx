@@ -294,7 +294,7 @@ export function DraftList() {
 	} = useDraftStatus({ autoRefresh, refetchInterval: 2000 });
 
 	// Fetch eco ratings from shared hook
-	const { ecoRatingMap, ecoDataMap, mapNames } = useEcoRatings();
+	const { ecoRatingMapByTier, ecoDataMapByTier, mapNames } = useEcoRatings();
 
 	// Fetch extended stats from spreadsheet
 	const { 
@@ -409,14 +409,15 @@ export function DraftList() {
 			activePreset.statFilters.forEach(filter => {
 				players = players.filter(p => {
 					let val: number | undefined;
+					const ecoKey = `${p.name.toLowerCase()}:${selectedTier.toLowerCase()}`;
 					if (filter.stat === "ecoRating") {
-						val = ecoRatingMap[p.name.toLowerCase()];
+						val = ecoRatingMapByTier[ecoKey];
 					} else if (filter.stat.startsWith("mapRating_")) {
 						const mapName = filter.stat.replace("mapRating_", "") as MapName;
-						val = ecoDataMap[p.name.toLowerCase()]?.mapData?.[mapName]?.rating;
+						val = ecoDataMapByTier[ecoKey]?.mapData?.[mapName]?.rating;
 					} else if (filter.stat.startsWith("mapGames_")) {
 						const mapName = filter.stat.replace("mapGames_", "") as MapName;
-						val = ecoDataMap[p.name.toLowerCase()]?.mapData?.[mapName]?.gamesPlayed;
+						val = ecoDataMapByTier[ecoKey]?.mapData?.[mapName]?.gamesPlayed;
 					} else {
 						val = p[filter.stat as keyof CscStats] as number | undefined;
 					}
@@ -460,21 +461,29 @@ export function DraftList() {
 					aVal = (a.team || "").toLowerCase();
 					bVal = (b.team || "").toLowerCase();
 				} else if (activePreset.sortColumn === "ecoRating") {
-					aVal = ecoRatingMap[a.name.toLowerCase()];
-					bVal = ecoRatingMap[b.name.toLowerCase()];
+					const aKey = `${a.name.toLowerCase()}:${selectedTier.toLowerCase()}`;
+					const bKey = `${b.name.toLowerCase()}:${selectedTier.toLowerCase()}`;
+					aVal = ecoRatingMapByTier[aKey];
+					bVal = ecoRatingMapByTier[bKey];
 				} else if (activePreset.sortColumn === "ecoRatingDiff") {
-					const aEco = ecoRatingMap[a.name.toLowerCase()];
-					const bEco = ecoRatingMap[b.name.toLowerCase()];
+					const aKey = `${a.name.toLowerCase()}:${selectedTier.toLowerCase()}`;
+					const bKey = `${b.name.toLowerCase()}:${selectedTier.toLowerCase()}`;
+					const aEco = ecoRatingMapByTier[aKey];
+					const bEco = ecoRatingMapByTier[bKey];
 					aVal = (aEco !== undefined && a.rating) ? ((aEco - a.rating) / a.rating) * 100 : undefined;
 					bVal = (bEco !== undefined && b.rating) ? ((bEco - b.rating) / b.rating) * 100 : undefined;
 				} else if (activePreset.sortColumn.startsWith("mapRating_")) {
 					const mapName = activePreset.sortColumn.replace("mapRating_", "") as MapName;
-					aVal = ecoDataMap[a.name.toLowerCase()]?.mapData?.[mapName]?.rating;
-					bVal = ecoDataMap[b.name.toLowerCase()]?.mapData?.[mapName]?.rating;
+					const aKey = `${a.name.toLowerCase()}:${selectedTier.toLowerCase()}`;
+					const bKey = `${b.name.toLowerCase()}:${selectedTier.toLowerCase()}`;
+					aVal = ecoDataMapByTier[aKey]?.mapData?.[mapName]?.rating;
+					bVal = ecoDataMapByTier[bKey]?.mapData?.[mapName]?.rating;
 				} else if (activePreset.sortColumn.startsWith("mapGames_")) {
 					const mapName = activePreset.sortColumn.replace("mapGames_", "") as MapName;
-					aVal = ecoDataMap[a.name.toLowerCase()]?.mapData?.[mapName]?.gamesPlayed;
-					bVal = ecoDataMap[b.name.toLowerCase()]?.mapData?.[mapName]?.gamesPlayed;
+					const aKey = `${a.name.toLowerCase()}:${selectedTier.toLowerCase()}`;
+					const bKey = `${b.name.toLowerCase()}:${selectedTier.toLowerCase()}`;
+					aVal = ecoDataMapByTier[aKey]?.mapData?.[mapName]?.gamesPlayed;
+					bVal = ecoDataMapByTier[bKey]?.mapData?.[mapName]?.gamesPlayed;
 				} else {
 					aVal = a[activePreset.sortColumn as keyof CscStats] as number | undefined;
 					bVal = b[activePreset.sortColumn as keyof CscStats] as number | undefined;
@@ -513,7 +522,7 @@ export function DraftList() {
 		}
 		
 		return sorted;
-	}, [tierPlayers, searchQuery, showDraftedOnly, draftStatusMap, playerTypeMap, activePreset, playersData, ecoRatingMap, ecoDataMap]);
+	}, [tierPlayers, searchQuery, showDraftedOnly, draftStatusMap, playerTypeMap, activePreset, playersData, ecoRatingMapByTier, ecoDataMapByTier, selectedTier]);
 
 	// Filter extended stats players based on search and draft status filter
 	const filteredExtendedPlayers = React.useMemo(() => {
@@ -731,14 +740,15 @@ export function DraftList() {
 				playersWithStats = playersWithStats.filter(({ playerName, stats }) => {
 					if (!stats) return false;
 					let val: number | undefined;
+					const ecoKey = `${playerName.toLowerCase()}:${selectedTier.toLowerCase()}`;
 					if (filter.stat === "ecoRating") {
-						val = ecoRatingMap[playerName.toLowerCase()];
+						val = ecoRatingMapByTier[ecoKey];
 					} else if (filter.stat.startsWith("mapRating_")) {
 						const mapName = filter.stat.replace("mapRating_", "") as MapName;
-						val = ecoDataMap[playerName.toLowerCase()]?.mapData?.[mapName]?.rating;
+						val = ecoDataMapByTier[ecoKey]?.mapData?.[mapName]?.rating;
 					} else if (filter.stat.startsWith("mapGames_")) {
 						const mapName = filter.stat.replace("mapGames_", "") as MapName;
-						val = ecoDataMap[playerName.toLowerCase()]?.mapData?.[mapName]?.gamesPlayed;
+						val = ecoDataMapByTier[ecoKey]?.mapData?.[mapName]?.gamesPlayed;
 					} else {
 						val = stats[filter.stat as keyof CscStats] as number | undefined;
 					}
@@ -766,21 +776,29 @@ export function DraftList() {
 					aVal = (a.stats?.team || "").toLowerCase();
 					bVal = (b.stats?.team || "").toLowerCase();
 				} else if (activePreset.sortColumn === "ecoRating") {
-					aVal = ecoRatingMap[a.playerName.toLowerCase()];
-					bVal = ecoRatingMap[b.playerName.toLowerCase()];
+					const aKey = `${a.playerName.toLowerCase()}:${selectedTier.toLowerCase()}`;
+					const bKey = `${b.playerName.toLowerCase()}:${selectedTier.toLowerCase()}`;
+					aVal = ecoRatingMapByTier[aKey];
+					bVal = ecoRatingMapByTier[bKey];
 				} else if (activePreset.sortColumn === "ecoRatingDiff") {
-					const aEco = ecoRatingMap[a.playerName.toLowerCase()];
-					const bEco = ecoRatingMap[b.playerName.toLowerCase()];
+					const aKey = `${a.playerName.toLowerCase()}:${selectedTier.toLowerCase()}`;
+					const bKey = `${b.playerName.toLowerCase()}:${selectedTier.toLowerCase()}`;
+					const aEco = ecoRatingMapByTier[aKey];
+					const bEco = ecoRatingMapByTier[bKey];
 					aVal = (aEco !== undefined && a.stats?.rating) ? ((aEco - a.stats.rating) / a.stats.rating) * 100 : undefined;
 					bVal = (bEco !== undefined && b.stats?.rating) ? ((bEco - b.stats.rating) / b.stats.rating) * 100 : undefined;
 				} else if (activePreset.sortColumn.startsWith("mapRating_")) {
 					const mapName = activePreset.sortColumn.replace("mapRating_", "") as MapName;
-					aVal = ecoDataMap[a.playerName.toLowerCase()]?.mapData?.[mapName]?.rating;
-					bVal = ecoDataMap[b.playerName.toLowerCase()]?.mapData?.[mapName]?.rating;
+					const aKey = `${a.playerName.toLowerCase()}:${selectedTier.toLowerCase()}`;
+					const bKey = `${b.playerName.toLowerCase()}:${selectedTier.toLowerCase()}`;
+					aVal = ecoDataMapByTier[aKey]?.mapData?.[mapName]?.rating;
+					bVal = ecoDataMapByTier[bKey]?.mapData?.[mapName]?.rating;
 				} else if (activePreset.sortColumn.startsWith("mapGames_")) {
 					const mapName = activePreset.sortColumn.replace("mapGames_", "") as MapName;
-					aVal = ecoDataMap[a.playerName.toLowerCase()]?.mapData?.[mapName]?.gamesPlayed;
-					bVal = ecoDataMap[b.playerName.toLowerCase()]?.mapData?.[mapName]?.gamesPlayed;
+					const aKey = `${a.playerName.toLowerCase()}:${selectedTier.toLowerCase()}`;
+					const bKey = `${b.playerName.toLowerCase()}:${selectedTier.toLowerCase()}`;
+					aVal = ecoDataMapByTier[aKey]?.mapData?.[mapName]?.gamesPlayed;
+					bVal = ecoDataMapByTier[bKey]?.mapData?.[mapName]?.gamesPlayed;
 				} else {
 					aVal = a.stats?.[activePreset.sortColumn as keyof CscStats] as number | undefined;
 					bVal = b.stats?.[activePreset.sortColumn as keyof CscStats] as number | undefined;
@@ -818,7 +836,7 @@ export function DraftList() {
 		});
 		
 		return [...available, ...unknown, ...drafted];
-	}, [currentListPlayers, draftStatusMap, activePreset, tierPlayers, playersData, ecoRatingMap, ecoDataMap]);
+	}, [currentListPlayers, draftStatusMap, activePreset, tierPlayers, playersData, ecoRatingMapByTier, ecoDataMapByTier, selectedTier]);
 
 	// Helper to check if player can move up within their availability group
 	const canMoveUp = (playerName: string, index: number): boolean => {
@@ -1112,7 +1130,8 @@ export function DraftList() {
 														</div>
 														{/* Map Stats - always visible */}
 														{(() => {
-															const ecoData = ecoDataMap[player.name.toLowerCase()];
+															const ecoKey = `${player.name.toLowerCase()}:${selectedTier.toLowerCase()}`;
+															const ecoData = ecoDataMapByTier[ecoKey];
 															const mapsWithData = mapNames
 																.filter(m => 
 																	ecoData?.mapData?.[m]?.rating !== undefined || 
@@ -1149,7 +1168,7 @@ export function DraftList() {
 														{player.gameCount || "-"}
 													</td>
 													<td className="px-3 py-2 text-center text-sm text-cyan-400">
-														{ecoRatingMap[player.name.toLowerCase()]?.toFixed(2) || "-"}
+														{ecoRatingMapByTier[`${player.name.toLowerCase()}:${selectedTier.toLowerCase()}`]?.toFixed(2) || "-"}
 													</td>
 													<td className="px-3 py-2 text-center">
 														<button
@@ -1221,7 +1240,8 @@ export function DraftList() {
 															</div>
 															{/* Map Stats */}
 															{(() => {
-																const ecoData = ecoDataMap[player.name.toLowerCase()];
+																const ecoKey = `${player.name.toLowerCase()}:${selectedTier.toLowerCase()}`;
+																const ecoData = ecoDataMapByTier[ecoKey];
 																const mapsWithData = mapNames.filter(m => 
 																	ecoData?.mapData?.[m]?.rating !== undefined || 
 																	ecoData?.mapData?.[m]?.gamesPlayed !== undefined
@@ -1450,12 +1470,13 @@ export function DraftList() {
 															{playerMmrMap[playerName] && <>MMR: <span className="text-green-400">{playerMmrMap[playerName]}</span> | </>}
 															{playerStats && <>Rating: {playerStats.rating?.toFixed(2)} | </>}
 															{playerStats && <>Games: <span className="text-yellow-400">{playerStats.gameCount || "-"}</span> | </>}
-															{ecoRatingMap[playerName.toLowerCase()] !== undefined && <>Eco: {ecoRatingMap[playerName.toLowerCase()]?.toFixed(2)}{playerStats && " | "}</>}
+															{ecoRatingMapByTier[`${playerName.toLowerCase()}:${selectedTier.toLowerCase()}`] !== undefined && <>Eco: {ecoRatingMapByTier[`${playerName.toLowerCase()}:${selectedTier.toLowerCase()}`]?.toFixed(2)}{playerStats && " | "}</>}
 															{playerStats && <>ADR: {playerStats.adr?.toFixed(1)}</>}
 														</div>
 														{/* Map Stats - always visible */}
 														{(() => {
-															const ecoData = ecoDataMap[playerName.toLowerCase()];
+															const ecoKey = `${playerName.toLowerCase()}:${selectedTier.toLowerCase()}`;
+															const ecoData = ecoDataMapByTier[ecoKey];
 															const mapsWithData = mapNames
 																.filter(m => 
 																	ecoData?.mapData?.[m]?.rating !== undefined || 
@@ -1570,7 +1591,8 @@ export function DraftList() {
 														</div>
 														{/* Map Stats */}
 														{(() => {
-															const ecoData = ecoDataMap[playerName.toLowerCase()];
+															const ecoKey = `${playerName.toLowerCase()}:${selectedTier.toLowerCase()}`;
+															const ecoData = ecoDataMapByTier[ecoKey];
 															const mapsWithData = mapNames.filter(m => 
 																ecoData?.mapData?.[m]?.rating !== undefined || 
 																ecoData?.mapData?.[m]?.gamesPlayed !== undefined
