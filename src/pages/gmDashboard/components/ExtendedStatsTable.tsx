@@ -65,41 +65,30 @@ export function ExtendedStatsTable({
 		return EXTENDED_STATS_COLUMNS.filter(col => col.category === selectedCategory);
 	}, [selectedCategory]);
 
-	// Filter players to only show those whose CURRENT tier matches the selected tier
-	// This prevents players from appearing in multiple tier tables
-	const currentTierPlayers = React.useMemo(() => {
-		if (!playersData) return players;
-		return players.filter(p => {
-			const playerData = playersData.find(pd => pd.name.toLowerCase() === p.name.toLowerCase());
-			// If we can find the player's current tier, only show them if it matches
-			// If we can't find them (they may have left), still show them in their spreadsheet tier
-			if (playerData?.tier?.name) {
-				return playerData.tier.name === selectedTier;
-			}
-			return true; // Keep players we can't find current tier for
-		});
-	}, [players, playersData, selectedTier]);
+	// The players prop already contains tier-specific stats from extendedStatsByTier[selectedTier]
+	// Each player's stats entry has a tier field that matches the selected tier
+	// No additional filtering needed - the spreadsheet has separate rows per tier
 
 	// Get available teams
 	const availableTeams = React.useMemo(() => {
 		const teams = new Set<string>();
-		currentTierPlayers.forEach(p => {
+		players.forEach(p => {
 			const teamDisplay = getPlayerTeamDisplay(p.name, undefined, playersData);
 			if (teamDisplay) teams.add(teamDisplay);
 		});
 		return Array.from(teams).sort();
-	}, [currentTierPlayers, playersData]);
+	}, [players, playersData]);
 
 	// Search filtered players for dropdown
 	const searchFilteredPlayers = React.useMemo(() => {
-		if (!playerSearchQuery) return currentTierPlayers;
+		if (!playerSearchQuery) return players;
 		const query = playerSearchQuery.toLowerCase();
-		return currentTierPlayers.filter(p => p.name.toLowerCase().includes(query));
-	}, [currentTierPlayers, playerSearchQuery]);
+		return players.filter(p => p.name.toLowerCase().includes(query));
+	}, [players, playerSearchQuery]);
 
 	// Filter players
 	const filteredPlayers = React.useMemo(() => {
-		let result = currentTierPlayers;
+		let result = players;
 
 		// Apply selected players filter
 		if (selectedPlayers.length > 0) {
@@ -184,8 +173,8 @@ export function ExtendedStatsTable({
 	// Compare player stats
 	const comparePlayerStats = React.useMemo(() => {
 		if (!comparePlayer) return null;
-		return currentTierPlayers.find(p => p.name === comparePlayer) || null;
-	}, [comparePlayer, currentTierPlayers]);
+		return players.find(p => p.name === comparePlayer) || null;
+	}, [comparePlayer, players]);
 
 	const handleSort = (column: ExtendedSortColumn) => {
 		if (sortColumn === column) {
@@ -320,7 +309,7 @@ export function ExtendedStatsTable({
 						className="px-4 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white focus:outline-none focus:border-blue-500 min-w-[200px]"
 					>
 						<option value="">Select a player to compare...</option>
-						{currentTierPlayers
+						{players
 							.sort((a, b) => b.final_rating - a.final_rating)
 							.map(player => (
 								<option key={player.name} value={player.name}>
@@ -751,12 +740,12 @@ export function ExtendedStatsTable({
 			)}
 
 			{/* Tier Averages Section */}
-			{currentTierPlayers.length > 0 && (
+			{players.length > 0 && (
 				<div className="mb-4 p-4 bg-gray-800 rounded-lg border border-gray-700">
 					<h3 className="text-sm font-bold text-white mb-3">{selectedTier} Tier Averages</h3>
 					<div className="flex flex-wrap gap-6">
 						{(() => {
-							const playersWithStats = currentTierPlayers.filter(p => p.kpr !== undefined && p.rounds_played > 0);
+							const playersWithStats = players.filter(p => p.kpr !== undefined && p.rounds_played > 0);
 							const avgKpr = playersWithStats.length > 0
 								? playersWithStats.reduce((sum, p) => sum + (p.kpr || 0), 0) / playersWithStats.length
 								: 0;
@@ -914,7 +903,7 @@ export function ExtendedStatsTable({
 			</div>
 
 			<div className="mt-4 text-sm text-gray-500">
-				Showing {sortedPlayers.length} of {currentTierPlayers.length} players in {selectedTier}
+				Showing {sortedPlayers.length} of {players.length} players in {selectedTier}
 				{(teamFilter || minGames > 0 || statFilters.length > 0) && (
 					<span className="ml-2">
 						(Filtered{teamFilter && ` by ${teamFilter}`}{minGames > 0 && ` with ≥${minGames} games`}{statFilters.length > 0 && ` with ${statFilters.length} stat filter${statFilters.length > 1 ? "s" : ""}`})
