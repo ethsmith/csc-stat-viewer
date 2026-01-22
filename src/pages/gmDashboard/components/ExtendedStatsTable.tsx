@@ -87,16 +87,6 @@ export function ExtendedStatsTable({
 			}
 		});
 		
-		// Also include players from the spreadsheet tier who aren't in playersData (e.g., left the league)
-		// but only if they're not already included
-		tierStats.forEach(s => {
-			const inPlayersData = playersData.find(pd => pd.name.toLowerCase() === s.name.toLowerCase());
-			const alreadyIncluded = result.find(r => r.name.toLowerCase() === s.name.toLowerCase());
-			if (!inPlayersData && !alreadyIncluded) {
-				result.push(s);
-			}
-		});
-		
 		return result;
 	}, [players, playersData, selectedTier, statsByTier]);
 
