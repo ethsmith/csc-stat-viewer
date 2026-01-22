@@ -26,3 +26,4 @@ export * from "./gmDashboard/scoutingNotes";
 export * from "./gmDashboard/tableView";
 export * from "./gmDashboard/draftList";
 export * from "./gmDashboard/teamVisualizer";
+export * from "./gmDashboard/playerStatsVisualization";

@@ -878,12 +878,22 @@ export function ExtendedStatsTable({
 											className={`hover:bg-gray-750 ${isComparePlayer ? "bg-blue-900/20" : ""}`}
 										>
 											<td className="px-3 py-2 whitespace-nowrap sticky left-0 bg-gray-800 z-[5]">
-												<Link href={`/players/${player.name}`}>
-													<span className={`font-medium hover:text-blue-400 cursor-pointer transition-colors ${isComparePlayer ? "text-blue-300" : "text-white"}`}>
-														{player.name}
-														{isComparePlayer && <span className="ml-2 text-xs text-blue-400">(comparing)</span>}
-													</span>
-												</Link>
+												<div className="flex items-center gap-2">
+													<Link href={`/players/${player.name}`}>
+														<span className={`font-medium hover:text-blue-400 cursor-pointer transition-colors ${isComparePlayer ? "text-blue-300" : "text-white"}`}>
+															{player.name}
+															{isComparePlayer && <span className="ml-2 text-xs text-blue-400">(comparing)</span>}
+														</span>
+													</Link>
+													<Link href={`/dashboard/player-stats/${encodeURIComponent(selectedTier)}/${encodeURIComponent(player.name)}`}>
+														<button 
+															className="px-2 py-1 text-xs bg-purple-600 hover:bg-purple-500 text-white rounded transition-colors"
+															title="View stat rankings"
+														>
+															📊
+														</button>
+													</Link>
+												</div>
 											</td>
 											<td className="px-3 py-2 whitespace-nowrap text-gray-400">
 												{getPlayerTeamDisplay(player.name, undefined, playersData)}

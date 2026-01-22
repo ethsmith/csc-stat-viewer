@@ -26,6 +26,7 @@ import {
 	TableView,
 	DraftList,
 	TeamVisualizer,
+	PlayerStatsVisualization,
 } from "./pages";
 import { ArticleRoutes } from "./pages/articles/routes";
 import { useDataContext } from "./DataContext";
@@ -119,6 +120,7 @@ export function Router() {
 		{ path: `/dashboard/table`, component: () => <TableView /> },
 		{ path: `/dashboard/draft-list`, component: () => <DraftList /> },
 		{ path: `/dashboard/team-visualizer`, component: () => <TeamVisualizer /> },
+		{ path: `/dashboard/player-stats/:tier/:name`, component: () => <PlayerStatsVisualization /> },
 		{ path: `/franchiseManagement`, component: () => <FranchiseManagement /> },
 	].concat(articleRoutes);
 

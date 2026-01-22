@@ -2,8 +2,8 @@ import { useQuery } from "@tanstack/react-query";
 import * as React from "react";
 
 // Google Sheets configuration for draft status
-// https://docs.google.com/spreadsheets/d/1TL1RuDsp1Pnw971Fg4u7UOqOpMo-1e0o_S8Sg3zqHsE/edit?usp=sharing
-const SPREADSHEET_ID = "1A9rmYWDTFENaTAcfY-3SdU41w9Q1uLBGXFK4G1idV3w";
+// https://docs.google.com/spreadsheets/d/1qVb8eX5fom7h-Edi99uAHQ0DbUXv7QtW1fitNv3JM3o/edit?usp=sharing
+const SPREADSHEET_ID = "1qVb8eX5fom7h-Edi99uAHQ0DbUXv7QtW1fitNv3JM3o";
 const SHEET_NAME = "Sheet1";
 
 interface DraftedPlayer {
