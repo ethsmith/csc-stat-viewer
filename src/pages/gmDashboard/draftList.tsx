@@ -12,7 +12,7 @@ import { PlayerTypes } from "../../common/utils/player-utils";
 import { PlayerRole, AVAILABLE_STATS } from "./types";
 import { useEcoRatings, MapName } from "./hooks/useEcoRatings";
 import { useDraftStatus } from "./hooks/useDraftStatus";
-import { useExtendedStats, ExtendedPlayerStats, EXTENDED_STATS_COLUMNS } from "./hooks/useExtendedStats";
+import { useExtendedStats, ExtendedPlayerStats, EXTENDED_STATS_COLUMNS, getPlayerStat } from "./hooks/useExtendedStats";
 
 // Scouting note types
 type Playstyle = "Aggressive" | "Passive";
@@ -74,10 +74,35 @@ export function DraftList() {
 		statsSource?: "csc" | "extended";
 	};
 
+	// Migration map: old hardcoded stat names -> new dynamic header-based names
+	const STAT_NAME_MIGRATION: Record<string, string> = {
+		"games_count": "games",
+		"multi_kills_1k": "1k",
+		"multi_kills_2k": "2k",
+		"multi_kills_3k": "3k",
+		"multi_kills_4k": "4k",
+		"multi_kills_5k": "5k",
+	};
+
+	const migrateStatName = (statName: string): string => STAT_NAME_MIGRATION[statName] || statName;
+
+	const migratePreset = (preset: FilterPreset): FilterPreset => {
+		if (preset.statsSource !== "extended") return preset;
+		return {
+			...preset,
+			sortColumn: migrateStatName(preset.sortColumn) as ExtendedSortColumn,
+			statFilters: preset.statFilters.map(f => ({
+				...f,
+				stat: migrateStatName(f.stat) as ExtendedFilterStat,
+			})),
+		};
+	};
+
 	const parsedPresets: FilterPreset[] = React.useMemo(() => {
 		try {
-			// Show all presets (both CSC and extended)
-			return JSON.parse(tableViewFilterPresets);
+			// Show all presets (both CSC and extended), migrate old stat names
+			const presets: FilterPreset[] = JSON.parse(tableViewFilterPresets);
+			return presets.map(migratePreset);
 		} catch {
 			return [];
 		}
@@ -543,12 +568,12 @@ export function DraftList() {
 			}
 			// Min games filter
 			if (activePreset.minGames > 0) {
-				players = players.filter(p => p.games_count >= activePreset.minGames);
+				players = players.filter(p => getPlayerStat(p, "games") >= activePreset.minGames);
 			}
 			// Stat filters - use extended stats column names
 			activePreset.statFilters.forEach(filter => {
 				players = players.filter(p => {
-					const val = p[filter.stat as keyof ExtendedPlayerStats] as number | undefined;
+					const val = getPlayerStat(p, filter.stat);
 					if (val === undefined) return false;
 					switch (filter.operator) {
 						case "<": return val < filter.value;
@@ -586,8 +611,8 @@ export function DraftList() {
 					aVal = a.name.toLowerCase();
 					bVal = b.name.toLowerCase();
 				} else {
-					aVal = a[activePreset.sortColumn as keyof ExtendedPlayerStats] as number | undefined;
-					bVal = b[activePreset.sortColumn as keyof ExtendedPlayerStats] as number | undefined;
+					aVal = getPlayerStat(a, activePreset.sortColumn);
+					bVal = getPlayerStat(b, activePreset.sortColumn);
 				}
 				
 				if (aVal === undefined && bVal === undefined) return 0;
@@ -618,7 +643,7 @@ export function DraftList() {
 				const priorityDiff = getPriority(aStatus) - getPriority(bStatus);
 				if (priorityDiff !== 0) return priorityDiff;
 				
-				return (b.final_rating || 0) - (a.final_rating || 0);
+				return getPlayerStat(b, "final_rating") - getPlayerStat(a, "final_rating");
 			});
 		}
 		
@@ -633,9 +658,9 @@ export function DraftList() {
 			// Convert extended stats players to display format
 			return filteredExtendedPlayers.map(p => ({
 				name: p.name,
-				rating: p.final_rating,
+				rating: getPlayerStat(p, "final_rating"),
 				team: undefined,
-				gameCount: p.games_count,
+				gameCount: getPlayerStat(p, "games"),
 			}));
 		}
 		return filteredPlayers.map(p => ({

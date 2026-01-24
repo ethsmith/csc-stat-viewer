@@ -11,7 +11,7 @@ import { OffSeasonBanner } from "./components/OffSeasonBanner";
 import { handleExportSettings, createImportHandler, parseColorblindColors, getPlayerTeamDisplay } from "./utils";
 import { useCscPlayersCache } from "../../dao/cscPlayerGraphQLDao";
 import { useEcoRatings, MapName } from "./hooks/useEcoRatings";
-import { useExtendedStats, ExtendedPlayerStats, EXTENDED_STATS_COLUMNS } from "./hooks/useExtendedStats";
+import { useExtendedStats, ExtendedPlayerStats, EXTENDED_STATS_COLUMNS, getPlayerStat } from "./hooks/useExtendedStats";
 import { useDataContext } from "../../DataContext";
 
 type FilterPreset = {
@@ -22,6 +22,30 @@ type FilterPreset = {
 	sortColumn: string;
 	sortDirection: "asc" | "desc";
 	statsSource?: "csc" | "extended";
+};
+
+// Migration map: old hardcoded stat names -> new dynamic header-based names
+const STAT_NAME_MIGRATION: Record<string, string> = {
+	"games_count": "games",
+	"multi_kills_1k": "1k",
+	"multi_kills_2k": "2k",
+	"multi_kills_3k": "3k",
+	"multi_kills_4k": "4k",
+	"multi_kills_5k": "5k",
+};
+
+const migrateStatName = (statName: string): string => STAT_NAME_MIGRATION[statName] || statName;
+
+const migratePreset = (preset: FilterPreset): FilterPreset => {
+	if (preset.statsSource !== "extended") return preset;
+	return {
+		...preset,
+		sortColumn: migrateStatName(preset.sortColumn),
+		statFilters: preset.statFilters.map(f => ({
+			...f,
+			stat: migrateStatName(f.stat),
+		})),
+	};
 };
 
 type SavedLineup = {
@@ -127,7 +151,8 @@ export function TeamVisualizer() {
 
 	const parsedPresets: FilterPreset[] = React.useMemo(() => {
 		try {
-			return JSON.parse(savedFilterPresets);
+			const presets: FilterPreset[] = JSON.parse(savedFilterPresets);
+			return presets.map(migratePreset);
 		} catch {
 			return [];
 		}
@@ -239,8 +264,8 @@ export function TeamVisualizer() {
 				const teamDisplay = getPlayerTeamDisplay(player.name, undefined, playersData);
 				playerMap.set(key, {
 					name: player.name,
-					rating: player.final_rating || 0,
-					games: player.games_count || 0,
+					rating: getPlayerStat(player, "final_rating"),
+					games: getPlayerStat(player, "games"),
 					mmr: playerMmrMap[player.name] || 0,
 					source: "extended",
 					extendedStats: player,
@@ -297,7 +322,7 @@ export function TeamVisualizer() {
 
 	// Check if extended stats player matches an extended preset
 	const checkExtendedPlayerMatchesPreset = React.useCallback((player: ExtendedPlayerStats, preset: FilterPreset): boolean => {
-		if (preset.minGames > 0 && (player.games_count || 0) < preset.minGames) {
+		if (preset.minGames > 0 && getPlayerStat(player, "games") < preset.minGames) {
 			return false;
 		}
 
@@ -310,7 +335,7 @@ export function TeamVisualizer() {
 				const mapName = filter.stat.replace("mapGames_", "") as MapName;
 				val = player.map_games_played[mapName];
 			} else {
-				val = player[filter.stat as keyof ExtendedPlayerStats] as number | undefined;
+				val = getPlayerStat(player, filter.stat);
 			}
 			
 			if (val === undefined) return false;
@@ -505,10 +530,10 @@ export function TeamVisualizer() {
 				totalKast += p.cscStats.kast || 0;
 				totalImpact += p.cscStats.impact || 0;
 			} else if (p.extendedStats) {
-				totalRating += p.extendedStats.final_rating || 0;
-				totalAdr += p.extendedStats.adr || 0;
-				totalKast += (p.extendedStats.kast || 0) * 100; // Extended KAST is 0-1
-				totalImpact += p.extendedStats.round_impact || 0;
+				totalRating += getPlayerStat(p.extendedStats, "final_rating");
+				totalAdr += getPlayerStat(p.extendedStats, "adr");
+				totalKast += getPlayerStat(p.extendedStats, "kast") * 100; // Extended KAST is 0-1
+				totalImpact += getPlayerStat(p.extendedStats, "round_impact");
 			}
 		});
 
@@ -1119,35 +1144,35 @@ function UnifiedPlayerHoverTooltip({ player, matchingPresets, position, isLocked
 					<div className="grid grid-cols-4 gap-2 text-xs">
 						<div className="flex justify-between">
 							<span className="text-gray-400">Rating:</span>
-							<span className="text-white">{ext.final_rating?.toFixed(2) || "N/A"}</span>
+							<span className="text-white">{getPlayerStat(ext, "final_rating").toFixed(2) || "N/A"}</span>
 						</div>
 						<div className="flex justify-between">
 							<span className="text-gray-400">ADR:</span>
-							<span className="text-white">{ext.adr?.toFixed(1) || "N/A"}</span>
+							<span className="text-white">{getPlayerStat(ext, "adr").toFixed(1) || "N/A"}</span>
 						</div>
 						<div className="flex justify-between">
 							<span className="text-gray-400">KPR:</span>
-							<span className="text-white">{ext.kpr?.toFixed(2) || "N/A"}</span>
+							<span className="text-white">{getPlayerStat(ext, "kpr").toFixed(2) || "N/A"}</span>
 						</div>
 						<div className="flex justify-between">
 							<span className="text-gray-400">DPR:</span>
-							<span className="text-white">{ext.dpr?.toFixed(2) || "N/A"}</span>
+							<span className="text-white">{getPlayerStat(ext, "dpr").toFixed(2) || "N/A"}</span>
 						</div>
 						<div className="flex justify-between">
 							<span className="text-gray-400">OK/R:</span>
-							<span className="text-white">{ext.opening_kills_per_round?.toFixed(2) || "N/A"}</span>
+							<span className="text-white">{getPlayerStat(ext, "opening_kills_per_round").toFixed(2) || "N/A"}</span>
 						</div>
 						<div className="flex justify-between">
 							<span className="text-gray-400">Clutch:</span>
-							<span className="text-white">{ext.clutch_wins || 0}/{ext.clutch_rounds || 0}</span>
+							<span className="text-white">{getPlayerStat(ext, "clutch_wins")}/{getPlayerStat(ext, "clutch_rounds")}</span>
 						</div>
 						<div className="flex justify-between">
 							<span className="text-gray-400">Impact:</span>
-							<span className="text-white">{ext.round_impact?.toFixed(2) || "N/A"}</span>
+							<span className="text-white">{getPlayerStat(ext, "round_impact").toFixed(2) || "N/A"}</span>
 						</div>
 						<div className="flex justify-between">
 							<span className="text-gray-400">Games:</span>
-							<span className="text-white">{ext.games_count || "N/A"}</span>
+							<span className="text-white">{getPlayerStat(ext, "games") || "N/A"}</span>
 						</div>
 					</div>
 				</div>
@@ -1317,14 +1342,14 @@ function JerseyCard({ slot, player, playerName, matchingPresets, onRemove }: Jer
 							<div className="mb-3">
 								<div className="text-xs font-medium text-purple-400 mb-2">Extended Stats</div>
 								<div className="grid grid-cols-4 gap-2 text-xs">
-									<div><span className="text-gray-400">Rating:</span> <span className="text-white">{ext.final_rating?.toFixed(2)}</span></div>
-									<div><span className="text-gray-400">ADR:</span> <span className="text-white">{ext.adr?.toFixed(1)}</span></div>
-									<div><span className="text-gray-400">KPR:</span> <span className="text-white">{ext.kpr?.toFixed(2)}</span></div>
-									<div><span className="text-gray-400">DPR:</span> <span className="text-white">{ext.dpr?.toFixed(2)}</span></div>
-									<div><span className="text-gray-400">OK/R:</span> <span className="text-white">{ext.opening_kills_per_round?.toFixed(2)}</span></div>
-									<div><span className="text-gray-400">Clutch:</span> <span className="text-white">{ext.clutch_wins}/{ext.clutch_rounds}</span></div>
-									<div><span className="text-gray-400">Impact:</span> <span className="text-white">{ext.round_impact?.toFixed(2)}</span></div>
-									<div><span className="text-gray-400">Games:</span> <span className="text-white">{ext.games_count}</span></div>
+									<div><span className="text-gray-400">Rating:</span> <span className="text-white">{getPlayerStat(ext, "final_rating").toFixed(2)}</span></div>
+									<div><span className="text-gray-400">ADR:</span> <span className="text-white">{getPlayerStat(ext, "adr").toFixed(1)}</span></div>
+									<div><span className="text-gray-400">KPR:</span> <span className="text-white">{getPlayerStat(ext, "kpr").toFixed(2)}</span></div>
+									<div><span className="text-gray-400">DPR:</span> <span className="text-white">{getPlayerStat(ext, "dpr").toFixed(2)}</span></div>
+									<div><span className="text-gray-400">OK/R:</span> <span className="text-white">{getPlayerStat(ext, "opening_kills_per_round").toFixed(2)}</span></div>
+									<div><span className="text-gray-400">Clutch:</span> <span className="text-white">{getPlayerStat(ext, "clutch_wins")}/{getPlayerStat(ext, "clutch_rounds")}</span></div>
+									<div><span className="text-gray-400">Impact:</span> <span className="text-white">{getPlayerStat(ext, "round_impact").toFixed(2)}</span></div>
+									<div><span className="text-gray-400">Games:</span> <span className="text-white">{getPlayerStat(ext, "games")}</span></div>
 								</div>
 							</div>
 						)}

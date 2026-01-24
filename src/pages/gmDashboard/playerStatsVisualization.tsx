@@ -6,7 +6,7 @@ import { useStatsWithFallback } from "./hooks/useStatsWithFallback";
 import { CscStats } from "../../models/csc-stats-types";
 import { ALL_STATS, StatDefinition } from "./types";
 import { useCscPlayersCache } from "../../dao/cscPlayerGraphQLDao";
-import { useExtendedStats, ExtendedPlayerStats, EXTENDED_STATS_COLUMNS, EXTENDED_STATS_CATEGORIES } from "./hooks/useExtendedStats";
+import { useExtendedStats, ExtendedPlayerStats, EXTENDED_STATS_COLUMNS, getPlayerStat } from "./hooks/useExtendedStats";
 
 interface StatRanking {
 	key: string;
@@ -23,8 +23,7 @@ export function PlayerStatsVisualization() {
 	const playerName = decodeURIComponent(params?.name ?? "");
 	const tier = decodeURIComponent(params?.tier ?? "");
 	const [statsSource, setStatsSource] = React.useState<"csc" | "extended">("csc");
-	const [selectedCategory, setSelectedCategory] = React.useState<string>("all");
-
+	
 	const { 
 		statsCache, 
 		isLoading: isLoadingStats,
@@ -135,16 +134,16 @@ export function PlayerStatsVisualization() {
 		const lowerIsBetterStats = ["deaths", "dpr", "opening_deaths", "opening_deaths_per_round", "awp_deaths", "awp_deaths_no_kill", "early_deaths", "team_flash_count", "team_flash_duration_per_round"];
 
 		EXTENDED_STATS_COLUMNS.forEach(col => {
-			const playerValue = currentExtendedPlayer[col.key] as number | undefined;
-			if (playerValue === undefined || playerValue === null) return;
+			const playerValue = getPlayerStat(currentExtendedPlayer, col.key);
+			if (playerValue === 0) return; // Skip stats with no value
 
 			const lowerIsBetter = lowerIsBetterStats.includes(col.key);
 			
 			const playersWithStat = extendedTierPlayers
-				.filter(p => p[col.key] !== undefined && p[col.key] !== null)
+				.filter(p => getPlayerStat(p, col.key) !== 0)
 				.sort((a, b) => {
-					const aVal = a[col.key] as number;
-					const bVal = b[col.key] as number;
+					const aVal = getPlayerStat(a, col.key);
+					const bVal = getPlayerStat(b, col.key);
 					return lowerIsBetter ? aVal - bVal : bVal - aVal;
 				});
 
@@ -171,15 +170,9 @@ export function PlayerStatsVisualization() {
 	// Use the appropriate rankings based on stats source
 	const statRankings = statsSource === "csc" ? cscStatRankings : extendedStatRankings;
 	
-	// Filter by category if extended stats and category selected
-	const filteredRankings = React.useMemo(() => {
-		if (statsSource === "csc" || selectedCategory === "all") return statRankings;
-		return statRankings.filter(r => r.category === selectedCategory);
-	}, [statRankings, statsSource, selectedCategory]);
-
-	const top5Stats = filteredRankings.filter(r => r.rank <= 5);
-	const top10Stats = filteredRankings.filter(r => r.rank > 5 && r.rank <= 10);
-	const otherStats = filteredRankings.filter(r => r.rank > 10);
+	const top5Stats = statRankings.filter(r => r.rank <= 5);
+	const top10Stats = statRankings.filter(r => r.rank > 5 && r.rank <= 10);
+	const otherStats = statRankings.filter(r => r.rank > 10);
 
 	const getStatColor = (rank: number): string => {
 		if (rank <= 5) return "from-yellow-500 to-amber-600";
@@ -319,7 +312,7 @@ export function PlayerStatsVisualization() {
 								)}
 								<span className="text-gray-500">
 									{statsSource === "csc" && currentPlayer ? `${currentPlayer.gameCount} games played` : ""}
-									{statsSource === "extended" && currentExtendedPlayer ? `${currentExtendedPlayer.games_count} games played` : ""}
+									{statsSource === "extended" && currentExtendedPlayer ? `${getPlayerStat(currentExtendedPlayer, "games")} games played` : ""}
 								</span>
 							</div>
 						</div>
@@ -354,23 +347,7 @@ export function PlayerStatsVisualization() {
 						</div>
 					</div>
 
-					{/* Category Filter for Extended Stats */}
-					{statsSource === "extended" && (
-						<div className="flex items-center gap-2">
-							<span className="text-sm text-gray-400">Category:</span>
-							<select
-								value={selectedCategory}
-								onChange={(e) => setSelectedCategory(e.target.value)}
-								className="px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white text-sm focus:outline-none focus:border-purple-500"
-							>
-								<option value="all">All Categories</option>
-								{EXTENDED_STATS_CATEGORIES.map(cat => (
-									<option key={cat} value={cat}>{cat}</option>
-								))}
-							</select>
-						</div>
-					)}
-				</div>
+					</div>
 
 				{/* Legend */}
 				<div className="mb-6 p-4 bg-gray-800 rounded-lg border border-gray-700">
@@ -437,12 +414,7 @@ export function PlayerStatsVisualization() {
 
 				{/* Summary Stats */}
 				<div className="mt-8 p-6 bg-gray-800 rounded-lg border border-gray-700">
-					<h3 className="text-lg font-bold text-white mb-4">
-						Player Summary 
-						{statsSource === "extended" && selectedCategory !== "all" && (
-							<span className="text-purple-400 text-sm font-normal ml-2">({selectedCategory})</span>
-						)}
-					</h3>
+					<h3 className="text-lg font-bold text-white mb-4">Player Summary</h3>
 					<div className="grid grid-cols-2 md:grid-cols-4 gap-6">
 						<div className="text-center">
 							<div className="text-4xl font-bold text-yellow-400">{top5Stats.length}</div>
@@ -454,14 +426,14 @@ export function PlayerStatsVisualization() {
 						</div>
 						<div className="text-center">
 							<div className="text-4xl font-bold text-green-400">
-								{filteredRankings.filter(r => r.rank <= 20).length}
+								{statRankings.filter(r => r.rank <= 20).length}
 							</div>
 							<div className="text-gray-400 text-sm">Top 20 Stats</div>
 						</div>
 						<div className="text-center">
 							<div className="text-4xl font-bold text-white">
-								{filteredRankings.length > 0 
-									? Math.round(filteredRankings.reduce((sum, r) => sum + r.percentile, 0) / filteredRankings.length)
+								{statRankings.length > 0 
+									? Math.round(statRankings.reduce((sum, r) => sum + r.percentile, 0) / statRankings.length)
 									: 0}%
 							</div>
 							<div className="text-gray-400 text-sm">Avg Percentile</div>

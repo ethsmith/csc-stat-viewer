@@ -1,14 +1,45 @@
 import * as React from "react";
 import { Link } from "wouter";
-import { ExtendedPlayerStats, EXTENDED_STATS_COLUMNS, EXTENDED_STATS_CATEGORIES, MapName } from "../hooks/useExtendedStats";
+import { ExtendedPlayerStats, EXTENDED_STATS_COLUMNS, MapName, getPlayerStat } from "../hooks/useExtendedStats";
 import { getPlayerTeamDisplay, parseColorblindColors } from "../utils";
 import { CscPlayer } from "../../../models/csc-player-types";
 
 // Map names for display
 const MAP_NAMES: MapName[] = ["de_nuke", "de_anubis", "de_dust2", "de_inferno", "de_overpass", "de_ancient", "de_mirage", "de_train"];
 
-type ExtendedSortColumn = keyof ExtendedPlayerStats | "name" | `mapRating_${MapName}` | `mapGames_${MapName}`;
-type ExtendedFilterStat = keyof ExtendedPlayerStats | `mapRating_${MapName}` | `mapGames_${MapName}`;
+// Migration map: old hardcoded stat names -> new dynamic header-based names
+// Only needed for stats where the old property name differed from headerToKey(header)
+const STAT_NAME_MIGRATION: Record<string, string> = {
+	"games_count": "games",
+	"multi_kills_1k": "1k",
+	"multi_kills_2k": "2k",
+	"multi_kills_3k": "3k",
+	"multi_kills_4k": "4k",
+	"multi_kills_5k": "5k",
+};
+
+// Migrate a stat name from old format to new format
+const migrateStatName = (statName: string): string => {
+	return STAT_NAME_MIGRATION[statName] || statName;
+};
+
+// Migrate a preset's stat names to new format
+const migratePreset = (preset: FilterPreset): FilterPreset => {
+	if (preset.statsSource !== "extended") return preset;
+	
+	return {
+		...preset,
+		sortColumn: migrateStatName(preset.sortColumn),
+		statFilters: preset.statFilters.map(f => ({
+			...f,
+			stat: migrateStatName(f.stat),
+		})),
+	};
+};
+
+// Use string types since ExtendedPlayerStats now has dynamic properties
+type ExtendedSortColumn = string;
+type ExtendedFilterStat = string;
 
 interface FilterPreset {
 	name: string;
@@ -54,18 +85,15 @@ export function ExtendedStatsTable({
 	const [showFilters, setShowFilters] = React.useState(false);
 	const [showSavePresetModal, setShowSavePresetModal] = React.useState(false);
 	const [newPresetName, setNewPresetName] = React.useState("");
-	const [selectedCategory, setSelectedCategory] = React.useState<string>("Core");
-	const [comparePlayer, setComparePlayer] = React.useState<string>("");
+		const [comparePlayer, setComparePlayer] = React.useState<string>("");
 	const [playerSearchQuery, setPlayerSearchQuery] = React.useState("");
 	const [selectedPlayers, setSelectedPlayers] = React.useState<string[]>([]);
 	const [showPlayerDropdown, setShowPlayerDropdown] = React.useState(false);
 	const [statFilterSearchQuery, setStatFilterSearchQuery] = React.useState("");
 	const [activeStatFilterIndex, setActiveStatFilterIndex] = React.useState<number | null>(null);
 
-	// Get columns for selected category
-	const visibleColumns = React.useMemo(() => {
-		return EXTENDED_STATS_COLUMNS.filter(col => col.category === selectedCategory);
-	}, [selectedCategory]);
+	// All columns from the spreadsheet headers
+	const visibleColumns = EXTENDED_STATS_COLUMNS;
 
 	// Get players whose CURRENT tier matches the selected tier, with stats from that tier
 	// This ensures players only appear in their current tier and show the correct tier's stats
@@ -123,7 +151,7 @@ export function ExtendedStatsTable({
 
 		// Apply min games filter
 		if (minGames > 0) {
-			result = result.filter(p => p.games_count >= minGames);
+			result = result.filter(p => getPlayerStat(p, "games") >= minGames);
 		}
 
 		// Apply stat filters
@@ -137,7 +165,7 @@ export function ExtendedStatsTable({
 					const mapName = filter.stat.replace("mapGames_", "") as MapName;
 					val = p.map_games_played[mapName];
 				} else {
-					val = p[filter.stat as keyof ExtendedPlayerStats] as number | undefined;
+					val = getPlayerStat(p, filter.stat);
 				}
 				if (val === undefined) return false;
 				switch (filter.operator) {
@@ -172,8 +200,8 @@ export function ExtendedStatsTable({
 				aVal = a.map_games_played[mapName];
 				bVal = b.map_games_played[mapName];
 			} else {
-				aVal = a[sortColumn as keyof ExtendedPlayerStats] as number | string | undefined;
-				bVal = b[sortColumn as keyof ExtendedPlayerStats] as number | string | undefined;
+				aVal = getPlayerStat(a, sortColumn);
+				bVal = getPlayerStat(b, sortColumn);
 			}
 
 			if (aVal === undefined && bVal === undefined) return 0;
@@ -219,10 +247,11 @@ export function ExtendedStatsTable({
 		);
 	};
 
-	// Preset management
+	// Preset management - migrate old stat names to new format when loading
 	const parsedPresets: FilterPreset[] = React.useMemo(() => {
 		try {
-			return JSON.parse(savedFilterPresets);
+			const presets: FilterPreset[] = JSON.parse(savedFilterPresets);
+			return presets.map(migratePreset);
 		} catch {
 			return [];
 		}
@@ -331,10 +360,10 @@ export function ExtendedStatsTable({
 					>
 						<option value="">Select a player to compare...</option>
 						{currentTierPlayers
-							.sort((a, b) => b.final_rating - a.final_rating)
+							.sort((a, b) => getPlayerStat(b, "final_rating") - getPlayerStat(a, "final_rating"))
 							.map(player => (
 								<option key={player.name} value={player.name}>
-									{player.name} ({player.final_rating.toFixed(2)})
+									{player.name} ({getPlayerStat(player, "final_rating").toFixed(2)})
 								</option>
 							))}
 					</select>
@@ -358,7 +387,7 @@ export function ExtendedStatsTable({
 							/>
 							<div className="absolute top-full left-0 mt-1 w-full max-h-60 overflow-y-auto bg-gray-800 border border-gray-700 rounded-lg shadow-lg z-20">
 								{searchFilteredPlayers
-									.sort((a, b) => b.final_rating - a.final_rating)
+									.sort((a, b) => getPlayerStat(b, "final_rating") - getPlayerStat(a, "final_rating"))
 									.slice(0, 20)
 									.map(player => (
 										<button
@@ -369,7 +398,7 @@ export function ExtendedStatsTable({
 										>
 											<span className="text-white">{player.name}</span>
 											<span className="text-gray-400 text-xs">
-												{player.final_rating.toFixed(2)}
+												{getPlayerStat(player, "final_rating").toFixed(2)}
 												{selectedPlayers.includes(player.name) && <span className="ml-2 text-blue-400">✓</span>}
 											</span>
 										</button>
@@ -380,19 +409,6 @@ export function ExtendedStatsTable({
 							</div>
 						</>
 					)}
-				</div>
-
-				<div>
-					<label className="block text-sm text-gray-400 mb-1">Stat Category</label>
-					<select
-						value={selectedCategory}
-						onChange={(e) => setSelectedCategory(e.target.value)}
-						className="px-4 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white focus:outline-none focus:border-blue-500"
-					>
-						{EXTENDED_STATS_CATEGORIES.map(cat => (
-							<option key={cat} value={cat}>{cat}</option>
-						))}
-					</select>
 				</div>
 
 				{comparePlayer && (
@@ -460,12 +476,8 @@ export function ExtendedStatsTable({
 									className="px-4 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none focus:border-blue-500 min-w-[150px]"
 								>
 									<option value="name">Player Name</option>
-									{EXTENDED_STATS_CATEGORIES.map(cat => (
-										<optgroup key={cat} label={cat}>
-											{EXTENDED_STATS_COLUMNS.filter(c => c.category === cat).map(col => (
-												<option key={col.key} value={col.key}>{col.label}</option>
-											))}
-										</optgroup>
+									{EXTENDED_STATS_COLUMNS.map(col => (
+										<option key={col.key} value={col.key}>{col.label}</option>
 									))}
 									<optgroup label="Map Ratings">
 										{MAP_NAMES.map(mapName => (
@@ -595,34 +607,25 @@ export function ExtendedStatsTable({
 																return <div className="px-3 py-2 text-gray-500 text-sm">No stats found</div>;
 															}
 															
-															// Group matching columns by category
-															const groupedColumns: Record<string, typeof matchingColumns> = {};
-															(query ? matchingColumns : EXTENDED_STATS_COLUMNS).forEach(col => {
-																if (!groupedColumns[col.category]) groupedColumns[col.category] = [];
-																groupedColumns[col.category].push(col);
-															});
+															// Simple list of all columns
+															const columnsToShow = query ? matchingColumns : EXTENDED_STATS_COLUMNS.slice(0, 20);
 															
 															return (
 																<>
-																	{EXTENDED_STATS_CATEGORIES.filter(cat => groupedColumns[cat]?.length > 0).map(cat => (
-																		<React.Fragment key={cat}>
-																			<div className="px-3 py-1 text-xs font-semibold text-gray-500 bg-gray-750 sticky top-0">{cat}</div>
-																			{groupedColumns[cat].slice(0, query ? 50 : 10).map(col => (
-																				<button
-																					key={col.key}
-																					onClick={() => {
-																						const newFilters = [...statFilters];
-																						newFilters[index] = { ...filter, stat: col.key as ExtendedFilterStat };
-																						setStatFilters(newFilters);
-																						setActiveStatFilterIndex(null);
-																						setStatFilterSearchQuery("");
-																					}}
-																					className={`w-full px-3 py-2 text-left text-sm hover:bg-gray-700 text-white ${filter.stat === col.key ? "bg-blue-900/30" : ""}`}
-																				>
-																					{col.label}
-																				</button>
-																			))}
-																		</React.Fragment>
+																	{columnsToShow.map(col => (
+																		<button
+																			key={col.key}
+																			onClick={() => {
+																				const newFilters = [...statFilters];
+																				newFilters[index] = { ...filter, stat: col.key as ExtendedFilterStat };
+																				setStatFilters(newFilters);
+																				setActiveStatFilterIndex(null);
+																				setStatFilterSearchQuery("");
+																			}}
+																			className={`w-full px-3 py-2 text-left text-sm hover:bg-gray-700 text-white ${filter.stat === col.key ? "bg-blue-900/30" : ""}`}
+																		>
+																			{col.label}
+																		</button>
 																	))}
 																	{(matchingMapRatings.length > 0 || !query) && (
 																		<>
@@ -644,7 +647,7 @@ export function ExtendedStatsTable({
 																			))}
 																		</>
 																	)}
-																	{!query && (
+																	{!query && EXTENDED_STATS_COLUMNS.length > 20 && (
 																		<div className="px-3 py-1 text-xs text-gray-500">Type to search more stats...</div>
 																	)}
 																</>
@@ -755,7 +758,7 @@ export function ExtendedStatsTable({
 			{comparePlayer && comparePlayerStats && (
 				<div className="mb-4 p-3 bg-blue-900/30 border border-blue-600 rounded-lg">
 					<span className="text-blue-200 text-sm">
-						Comparing all players to: <strong>{comparePlayer}</strong> (Rating: {comparePlayerStats.final_rating.toFixed(2)})
+						Comparing all players to: <strong>{comparePlayer}</strong> (Rating: {getPlayerStat(comparePlayerStats, "final_rating").toFixed(2)})
 					</span>
 				</div>
 			)}
@@ -766,18 +769,18 @@ export function ExtendedStatsTable({
 					<h3 className="text-sm font-bold text-white mb-3">{selectedTier} Tier Averages</h3>
 					<div className="flex flex-wrap gap-6">
 						{(() => {
-							const playersWithStats = currentTierPlayers.filter(p => p.kpr !== undefined && p.rounds_played > 0);
+							const playersWithStats = currentTierPlayers.filter(p => getPlayerStat(p, "kpr") !== 0 && getPlayerStat(p, "rounds_played") > 0);
 							const avgKpr = playersWithStats.length > 0
-								? playersWithStats.reduce((sum, p) => sum + (p.kpr || 0), 0) / playersWithStats.length
+								? playersWithStats.reduce((sum, p) => sum + getPlayerStat(p, "kpr"), 0) / playersWithStats.length
 								: 0;
 							const avgDpr = playersWithStats.length > 0
-								? playersWithStats.reduce((sum, p) => sum + (p.dpr || 0), 0) / playersWithStats.length
+								? playersWithStats.reduce((sum, p) => sum + getPlayerStat(p, "dpr"), 0) / playersWithStats.length
 								: 0;
 							const avgAdr = playersWithStats.length > 0
-								? playersWithStats.reduce((sum, p) => sum + (p.adr || 0), 0) / playersWithStats.length
+								? playersWithStats.reduce((sum, p) => sum + getPlayerStat(p, "adr"), 0) / playersWithStats.length
 								: 0;
 							const avgKast = playersWithStats.length > 0
-								? playersWithStats.reduce((sum, p) => sum + (p.kast || 0), 0) / playersWithStats.length
+								? playersWithStats.reduce((sum, p) => sum + getPlayerStat(p, "kast"), 0) / playersWithStats.length
 								: 0;
 							
 							return (
@@ -851,12 +854,6 @@ export function ExtendedStatsTable({
 								<th className="px-3 py-2 text-left text-xs font-medium text-gray-400 uppercase tracking-wider min-w-[80px] bg-gray-900 sticky top-0 z-20">
 									Team
 								</th>
-								<th
-									className="px-2 py-2 text-center text-xs font-medium text-gray-400 uppercase tracking-wider min-w-[60px] cursor-pointer hover:text-white transition-colors select-none bg-gray-900 sticky top-0 z-20"
-									onClick={() => handleSort("games_count")}
-								>
-									Games{getSortIndicator("games_count")}
-								</th>
 								{visibleColumns.map(col => (
 									<th
 										key={col.key}
@@ -898,12 +895,9 @@ export function ExtendedStatsTable({
 											<td className="px-3 py-2 whitespace-nowrap text-gray-400">
 												{getPlayerTeamDisplay(player.name, undefined, playersData)}
 											</td>
-											<td className="px-2 py-2 text-center whitespace-nowrap text-gray-300">
-												{player.games_count}
-											</td>
 											{visibleColumns.map(col => {
-												const value = player[col.key] as number | undefined;
-												const compareValue = comparePlayerStats?.[col.key] as number | undefined;
+												const value = getPlayerStat(player, col.key);
+												const compareValue = comparePlayerStats ? getPlayerStat(comparePlayerStats, col.key) : undefined;
 												const colorInfo = comparePlayer && !isComparePlayer
 													? getComparisonColor(value, compareValue, col.key)
 													: { className: "text-gray-300" };
@@ -923,7 +917,7 @@ export function ExtendedStatsTable({
 								})
 							) : (
 								<tr>
-									<td colSpan={visibleColumns.length + 3} className="px-6 py-8 text-center text-gray-400">
+									<td colSpan={visibleColumns.length + 2} className="px-6 py-8 text-center text-gray-400">
 										No players found in this tier
 									</td>
 								</tr>
