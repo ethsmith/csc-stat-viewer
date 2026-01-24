@@ -1,9 +1,14 @@
 import { useQuery } from "@tanstack/react-query";
 import * as React from "react";
 
+// Normalize player name for consistent lookups: lowercase, trim, remove extra whitespace
+export const normalizeName = (name: string): string => {
+	return name.toLowerCase().trim().replace(/\s+/g, " ");
+};
+
 // Google Sheets configuration for draft status
-// https://docs.google.com/spreadsheets/d/1qVb8eX5fom7h-Edi99uAHQ0DbUXv7QtW1fitNv3JM3o/edit?usp=sharing
-const SPREADSHEET_ID = "1qVb8eX5fom7h-Edi99uAHQ0DbUXv7QtW1fitNv3JM3o";
+// https://docs.google.com/spreadsheets/d/1nsScfN6MEoVs9QZP7YxwivSu2wZcgLRBlEKQ7Q3dP4Q/edit?usp=sharing
+const SPREADSHEET_ID = "1nsScfN6MEoVs9QZP7YxwivSu2wZcgLRBlEKQ7Q3dP4Q";
 const SHEET_NAME = "Sheet1";
 
 interface DraftedPlayer {
@@ -54,11 +59,17 @@ const fetchDraftStatus = async (): Promise<DraftedPlayer[]> => {
 	const headerLine = lines[0];
 	const headers = parseCSVLine(headerLine).map(h => h.replace(/^"|"$/g, "").trim().toLowerCase());
 	
-	const nameIndex = headers.findIndex(h => h === "name");
-	const draftedIndex = headers.findIndex(h => h === "drafted?" || h === "drafted");
+	// Look for name column with various possible headers
+	const nameIndex = headers.findIndex(h => 
+		h === "name" || h === "player" || h === "player name" || h === "playername"
+	);
+	// Look for drafted column with various possible headers
+	const draftedIndex = headers.findIndex(h => 
+		h === "drafted?" || h === "drafted" || h === "is drafted" || h === "isdrafted"
+	);
 	
 	if (nameIndex === -1) {
-		console.error("Could not find 'Name' column in spreadsheet. Headers:", headers);
+		console.error("Could not find 'Name' column in spreadsheet. Headers found:", headers);
 		return [];
 	}
 	
@@ -106,17 +117,16 @@ export function useDraftStatus(options: UseDraftStatusOptions = {}) {
 		dataUpdatedAt,
 		error
 	} = useQuery({
-		queryKey: ["draftStatus"],
+		queryKey: ["draftStatus", SPREADSHEET_ID],
 		queryFn: fetchDraftStatus,
 		refetchInterval: autoRefresh ? refetchInterval : false,
 		staleTime: 5000,
 	});
 
-	// Create a map for quick lookup of draft status by player name (lowercase)
 	const draftStatusMap = React.useMemo(() => {
 		const map: Record<string, boolean> = {};
 		draftStatus.forEach(player => {
-			map[player.name.toLowerCase()] = player.drafted;
+			map[normalizeName(player.name)] = player.drafted;
 		});
 		return map;
 	}, [draftStatus]);

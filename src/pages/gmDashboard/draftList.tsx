@@ -11,7 +11,7 @@ import { Franchise } from "../../models/franchise-types";
 import { PlayerTypes } from "../../common/utils/player-utils";
 import { PlayerRole, AVAILABLE_STATS } from "./types";
 import { useEcoRatings, MapName } from "./hooks/useEcoRatings";
-import { useDraftStatus } from "./hooks/useDraftStatus";
+import { useDraftStatus, normalizeName } from "./hooks/useDraftStatus";
 import { useExtendedStats, ExtendedPlayerStats, EXTENDED_STATS_COLUMNS, getPlayerStat } from "./hooks/useExtendedStats";
 
 // Scouting note types
@@ -467,9 +467,9 @@ export function DraftList() {
 
 		// Filter by draft status
 		if (showDraftedOnly === "available") {
-			players = players.filter(p => !draftStatusMap[p.name.toLowerCase()]);
+			players = players.filter(p => !draftStatusMap[normalizeName(p.name)]);
 		} else if (showDraftedOnly === "drafted") {
-			players = players.filter(p => draftStatusMap[p.name.toLowerCase()]);
+			players = players.filter(p => draftStatusMap[normalizeName(p.name)]);
 		}
 
 		// Sort: if preset has sorting, use it; otherwise use availability + rating
@@ -530,8 +530,8 @@ export function DraftList() {
 		} else if (!activePreset || activePreset.statsSource === "extended") {
 			// Default: Sort by availability first (Available, Unknown, Drafted), then by rating descending
 			sorted.sort((a, b) => {
-				const aStatus = draftStatusMap[a.name.toLowerCase()];
-				const bStatus = draftStatusMap[b.name.toLowerCase()];
+				const aStatus = draftStatusMap[normalizeName(a.name)];
+				const bStatus = draftStatusMap[normalizeName(b.name)];
 				
 				const getPriority = (status: boolean | undefined) => {
 					if (status === false) return 0; // Available
@@ -595,9 +595,9 @@ export function DraftList() {
 
 		// Filter by draft status
 		if (showDraftedOnly === "available") {
-			players = players.filter(p => !draftStatusMap[p.name.toLowerCase()]);
+			players = players.filter(p => !draftStatusMap[normalizeName(p.name)]);
 		} else if (showDraftedOnly === "drafted") {
-			players = players.filter(p => draftStatusMap[p.name.toLowerCase()]);
+			players = players.filter(p => draftStatusMap[normalizeName(p.name)]);
 		}
 
 		// Sort: if preset has sorting, use it; otherwise use availability + rating
@@ -631,8 +631,8 @@ export function DraftList() {
 		} else {
 			// Default: Sort by availability first (Available, Unknown, Drafted), then by rating descending
 			sorted.sort((a, b) => {
-				const aStatus = draftStatusMap[a.name.toLowerCase()];
-				const bStatus = draftStatusMap[b.name.toLowerCase()];
+				const aStatus = draftStatusMap[normalizeName(a.name)];
+				const bStatus = draftStatusMap[normalizeName(b.name)];
 				
 				const getPriority = (status: boolean | undefined) => {
 					if (status === false) return 0; // Available
@@ -721,7 +721,8 @@ export function DraftList() {
 		let unknown = 0;
 
 		tierPlayers.forEach(player => {
-			const status = draftStatusMap[player.name.toLowerCase()];
+			const normalizedName = normalizeName(player.name);
+			const status = draftStatusMap[normalizedName];
 			if (status === true) {
 				drafted++;
 			} else if (status === false) {
@@ -850,7 +851,7 @@ export function DraftList() {
 		const drafted: string[] = [];
 		
 		playersWithStats.forEach(({ playerName }) => {
-			const status = draftStatusMap[playerName.toLowerCase()];
+			const status = draftStatusMap[normalizeName(playerName)];
 			if (status === false) {
 				available.push(playerName);
 			} else if (status === undefined) {
@@ -867,8 +868,8 @@ export function DraftList() {
 	const canMoveUp = (playerName: string, index: number): boolean => {
 		if (index === 0) return false;
 		const prevPlayer = sortedDraftList[index - 1];
-		const currentStatus = draftStatusMap[playerName.toLowerCase()];
-		const prevStatus = draftStatusMap[prevPlayer.toLowerCase()];
+		const currentStatus = draftStatusMap[normalizeName(playerName)];
+		const prevStatus = draftStatusMap[normalizeName(prevPlayer)];
 		// Can only move up if previous player has same availability status
 		return currentStatus === prevStatus;
 	};
@@ -877,8 +878,8 @@ export function DraftList() {
 	const canMoveDown = (playerName: string, index: number): boolean => {
 		if (index === sortedDraftList.length - 1) return false;
 		const nextPlayer = sortedDraftList[index + 1];
-		const currentStatus = draftStatusMap[playerName.toLowerCase()];
-		const nextStatus = draftStatusMap[nextPlayer.toLowerCase()];
+		const currentStatus = draftStatusMap[normalizeName(playerName)];
+		const nextStatus = draftStatusMap[normalizeName(nextPlayer)];
 		// Can only move down if next player has same availability status
 		return currentStatus === nextStatus;
 	};
@@ -1119,7 +1120,7 @@ export function DraftList() {
 										</tr>
 									) : (
 										displayPlayers.map(player => {
-											const isDrafted = draftStatusMap[player.name.toLowerCase()];
+											const isDrafted = draftStatusMap[normalizeName(player.name)];
 											const statusKnown = isDrafted !== undefined;
 											const isInCurrentList = isPlayerInCurrentList(player.name);
 											const isInAnyList = isPlayerInMyDraftList(player.name);
@@ -1339,7 +1340,7 @@ export function DraftList() {
 											</thead>
 											<tbody className="divide-y divide-purple-800/50">
 												{similarPlayers.map((item, idx) => {
-													const isDrafted = draftStatusMap[item.player.name.toLowerCase()];
+													const isDrafted = draftStatusMap[normalizeName(item.player.name)];
 													const statusKnown = isDrafted !== undefined;
 													const isInList = isPlayerInMyDraftList(item.player.name);
 													
@@ -1456,7 +1457,7 @@ export function DraftList() {
 								<div className="divide-y divide-gray-700">
 									{sortedDraftList.map((playerName, index) => {
 										const playerStats = tierPlayers.find(p => p.name === playerName);
-										const isDrafted = draftStatusMap[playerName.toLowerCase()];
+										const isDrafted = draftStatusMap[normalizeName(playerName)];
 										const statusKnown = isDrafted !== undefined;
 										const scoutingNote = getScoutingNote(playerName, selectedTier);
 										const hasScoutingData = scoutingNote && (scoutingNote.playstyle || scoutingNote.role || scoutingNote.commsRating || scoutingNote.notes);
