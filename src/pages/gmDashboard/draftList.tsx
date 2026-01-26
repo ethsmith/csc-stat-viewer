@@ -1645,6 +1645,8 @@ export function DraftList() {
 										const actualTier = getPlayerActualTier(playerName);
 										// Tier mismatch if player is in a different tier, OR if player is no longer found in any tier
 										const tierMismatch = actualTier !== selectedTier;
+										// Check if this player has stats from a different tier (promotion/demotion)
+										const statsSourceTier = playerStatsTierMap[playerName.toLowerCase()];
 										
 										return (
 											<div
@@ -1663,6 +1665,14 @@ export function DraftList() {
 													<div className="flex-1 min-w-0">
 														<div className={`font-medium ${tierMismatch ? "text-orange-400" : isDrafted ? "text-gray-500 line-through" : "text-white"}`}>
 															{playerName}
+															{statsSourceTier && !tierMismatch && (
+																<span 
+																	className="ml-2 inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-orange-900 text-orange-300"
+																	title={`Stats shown are from ${statsSourceTier} (no ${selectedTier} stats yet)`}
+																>
+																	↑↓ {statsSourceTier}
+																</span>
+															)}
 															{hasScoutingData && (
 																<span className="ml-2 text-xs text-cyan-400" title="Has scouting notes">📋</span>
 															)}
@@ -1673,16 +1683,28 @@ export function DraftList() {
 																<span>{actualTier ? `Now in ${actualTier}` : "No longer in any tier"} - Cannot draft in {selectedTier}</span>
 															</div>
 														)}
-														<div className="text-xs text-gray-500">
+														{statsSourceTier && !tierMismatch && (
+															<div className="text-xs text-orange-400">
+																Stats from {statsSourceTier} tier (promoted/demoted player)
+															</div>
+														)}
+														<div className={`text-xs ${statsSourceTier ? 'text-orange-400' : 'text-gray-500'}`}>
 															{playerMmrMap[playerName] && <>MMR: <span className="text-green-400">{playerMmrMap[playerName]}</span> | </>}
-															{playerStats && <>Rating: {playerStats.rating?.toFixed(2)} | </>}
-															{playerStats && <>Games: <span className="text-yellow-400">{playerStats.gameCount || "-"}</span> | </>}
-															{ecoRatingMapByTier[`${playerName.toLowerCase()}:${selectedTier.toLowerCase()}`] !== undefined && <>Eco: {ecoRatingMapByTier[`${playerName.toLowerCase()}:${selectedTier.toLowerCase()}`]?.toFixed(2)}{playerStats && " | "}</>}
-															{playerStats && <>ADR: {playerStats.adr?.toFixed(1)}</>}
+															{playerStats && <>Rating: {playerStats.rating?.toFixed(2)}{statsSourceTier && '*'} | </>}
+															{playerStats && <>Games: <span className="text-yellow-400">{playerStats.gameCount || "-"}{statsSourceTier && '*'}</span> | </>}
+															{(() => {
+																// For promoted/demoted players, use their source tier for eco rating lookup
+																const tierForLookup = statsSourceTier || selectedTier;
+																const ecoRating = ecoRatingMapByTier[`${playerName.toLowerCase()}:${tierForLookup.toLowerCase()}`];
+																return ecoRating !== undefined ? <>Eco: {ecoRating?.toFixed(2)}{statsSourceTier && '*'}{playerStats && " | "}</> : null;
+															})()}
+															{playerStats && <>ADR: {playerStats.adr?.toFixed(1)}{statsSourceTier && '*'}</>}
 														</div>
 														{/* Map Stats - always visible */}
 														{(() => {
-															const ecoKey = `${playerName.toLowerCase()}:${selectedTier.toLowerCase()}`;
+															// For promoted/demoted players, use their source tier for map stats lookup
+															const tierForLookup = statsSourceTier || selectedTier;
+															const ecoKey = `${playerName.toLowerCase()}:${tierForLookup.toLowerCase()}`;
 															const ecoData = ecoDataMapByTier[ecoKey];
 															const mapsWithData = mapNames
 																.filter(m => 
@@ -1700,9 +1722,9 @@ export function DraftList() {
 																	{mapsWithData.map(mapName => {
 																		const mapData = ecoData?.mapData?.[mapName];
 																		return (
-																			<span key={mapName} className="px-1.5 py-0.5 bg-gray-700 rounded text-xs text-gray-400">
+																			<span key={mapName} className={`px-1.5 py-0.5 rounded text-xs ${statsSourceTier ? 'bg-orange-900/30 text-orange-300' : 'bg-gray-700 text-gray-400'}`}>
 																				{formatMapName(mapName)}: {mapData?.rating?.toFixed(2) || "-"}
-																				<span className="text-gray-600">({mapData?.gamesPlayed || 0})</span>
+																				<span className={statsSourceTier ? 'text-orange-500' : 'text-gray-600'}>({mapData?.gamesPlayed || 0})</span>
 																			</span>
 																		);
 																	})}
