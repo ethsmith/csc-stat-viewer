@@ -357,33 +357,191 @@ export function DraftList() {
 		}
 	}, [availableTiers, selectedTier]);
 
+	// Tier order from lowest to highest for finding closest tier stats
+	const TIER_ORDER = ["Recruit", "Prospect", "Contender", "Challenger", "Elite", "Premier"];
+	const getTierIndex = (tierName: string): number => {
+		const index = TIER_ORDER.findIndex(t => t.toLowerCase() === tierName.toLowerCase());
+		return index >= 0 ? index : -1;
+	};
+
+	// Helper to get a player's stats from the tier closest to their current tier (with gameCount >= 3)
+	const getPlayerStatsFromAnyTier = React.useCallback((playerName: string, currentTier?: string): { stats: CscStats; sourceTier: string } | null => {
+		if (!statsCache?.data) return null;
+		const lowerName = playerName.toLowerCase();
+		const currentTierIndex = currentTier ? getTierIndex(currentTier) : -1;
+		
+		// Collect all tiers where this player has stats with >= 3 games
+		const playerTierStats: { stats: CscStats; sourceTier: string; tierIndex: number }[] = [];
+		for (const tier of Object.keys(statsCache.data)) {
+			const tierStats = statsCache.data[tier as keyof typeof statsCache.data] || [];
+			const playerStats = tierStats.find(p => p.name.toLowerCase() === lowerName);
+			if (playerStats && (playerStats.gameCount || 0) >= 3) {
+				const tierIndex = getTierIndex(tier);
+				if (tierIndex >= 0) {
+					playerTierStats.push({ stats: playerStats, sourceTier: tier, tierIndex });
+				}
+			}
+		}
+		
+		if (playerTierStats.length === 0) return null;
+		
+		// If we have a current tier, find the closest tier (prefer lower tier if equidistant)
+		if (currentTierIndex >= 0) {
+			playerTierStats.sort((a, b) => {
+				const distA = Math.abs(a.tierIndex - currentTierIndex);
+				const distB = Math.abs(b.tierIndex - currentTierIndex);
+				if (distA !== distB) return distA - distB; // Closer tier first
+				// If equidistant, prefer the lower tier (more relevant for promoted players)
+				return a.tierIndex - b.tierIndex;
+			});
+		}
+		
+		return { stats: playerTierStats[0].stats, sourceTier: playerTierStats[0].sourceTier };
+	}, [statsCache]);
+
 	const tierPlayers: CscStats[] = React.useMemo(() => {
 		if (!statsCache?.data || !selectedTier) return [];
 		const players = statsCache.data[selectedTier as keyof typeof statsCache.data] || [];
-		// Filter to only show players still in the selected tier
+		
 		if (!playersData) return players;
-		return players.filter(p => {
+		
+		// Start with players who have stats in the selected tier AND are currently in that tier
+		const playersInTierWithStats = players.filter(p => {
 			const playerData = playersData.find(pd => pd.name.toLowerCase() === p.name.toLowerCase());
 			if (playerData?.tier?.name) {
 				return playerData.tier.name === selectedTier;
 			}
 			return true; // Keep players not found in playersData (shouldn't happen normally)
 		});
-	}, [statsCache, selectedTier, playersData]);
+		
+		// Track which players we already have
+		const existingPlayerNames = new Set(playersInTierWithStats.map(p => p.name.toLowerCase()));
+		
+		// Find players who are currently in the selected tier but have stats in a different tier
+		// They must have at least 3 games in any tier to be included
+		const playersWithoutTierStats: CscStats[] = [];
+		playersData.forEach(pd => {
+			if (pd.tier?.name === selectedTier && !existingPlayerNames.has(pd.name.toLowerCase())) {
+				// Player is in this tier but doesn't have stats in this tier
+				// Check if they have at least 3 games in any tier, preferring the closest tier
+				const result = getPlayerStatsFromAnyTier(pd.name, selectedTier);
+				if (result) {
+					// Create a placeholder stats object for this player in the current tier
+					// Use their stats from another tier as a reference, keeping original gameCount
+					playersWithoutTierStats.push({
+						...result.stats,
+						name: pd.name, // Use the canonical name from playersData
+						team: "", // No team stats in this tier
+						// Keep original gameCount from source tier - the badge will indicate it's from another tier
+					});
+				}
+			}
+		});
+		
+		return [...playersInTierWithStats, ...playersWithoutTierStats];
+	}, [statsCache, selectedTier, playersData, getPlayerStatsFromAnyTier]);
+
+	// Map of player names (lowercase) to their stats source tier (for players with stats from a different tier)
+	const playerStatsTierMap = React.useMemo(() => {
+		const map: Record<string, string> = {};
+		if (!playersData || !selectedTier) return map;
+		
+		playersData.forEach(pd => {
+			if (pd.tier?.name === selectedTier) {
+				// Check if this player has stats in the current tier
+				const currentTierStats = statsCache?.data?.[selectedTier as keyof typeof statsCache.data];
+				const hasStatsInCurrentTier = currentTierStats?.some(
+					p => p.name.toLowerCase() === pd.name.toLowerCase()
+				);
+				
+				if (!hasStatsInCurrentTier) {
+					// Player doesn't have stats in current tier, find where their stats are from (closest tier)
+					const result = getPlayerStatsFromAnyTier(pd.name, selectedTier);
+					if (result && result.sourceTier !== selectedTier) {
+						map[pd.name.toLowerCase()] = result.sourceTier;
+					}
+				}
+			}
+		});
+		
+		return map;
+	}, [playersData, selectedTier, statsCache, getPlayerStatsFromAnyTier]);
+
+	// Helper to get a player's extended stats from the tier closest to their current tier (with games >= 3)
+	const getPlayerExtendedStatsFromAnyTier = React.useCallback((playerName: string, currentTier?: string): { stats: ExtendedPlayerStats; sourceTier: string } | null => {
+		const lowerName = playerName.toLowerCase();
+		const currentTierIndex = currentTier ? getTierIndex(currentTier) : -1;
+		
+		// Collect all tiers where this player has extended stats with >= 3 games
+		const playerTierStats: { stats: ExtendedPlayerStats; sourceTier: string; tierIndex: number }[] = [];
+		for (const tier of Object.keys(extendedStatsByTier)) {
+			const tierStats = extendedStatsByTier[tier] || [];
+			const playerStats = tierStats.find(p => p.name.toLowerCase() === lowerName);
+			if (playerStats && getPlayerStat(playerStats, "games") >= 3) {
+				const tierIndex = getTierIndex(tier);
+				if (tierIndex >= 0) {
+					playerTierStats.push({ stats: playerStats, sourceTier: tier, tierIndex });
+				}
+			}
+		}
+		
+		if (playerTierStats.length === 0) return null;
+		
+		// If we have a current tier, find the closest tier (prefer lower tier if equidistant)
+		if (currentTierIndex >= 0) {
+			playerTierStats.sort((a, b) => {
+				const distA = Math.abs(a.tierIndex - currentTierIndex);
+				const distB = Math.abs(b.tierIndex - currentTierIndex);
+				if (distA !== distB) return distA - distB; // Closer tier first
+				// If equidistant, prefer the lower tier (more relevant for promoted players)
+				return a.tierIndex - b.tierIndex;
+			});
+		}
+		
+		return { stats: playerTierStats[0].stats, sourceTier: playerTierStats[0].sourceTier };
+	}, [extendedStatsByTier]);
 
 	// Extended stats tier players - filtered to only show players in their current tier
 	const extendedTierPlayers: ExtendedPlayerStats[] = React.useMemo(() => {
 		if (!selectedTier) return [];
 		const players = extendedStatsByTier[selectedTier] || [];
+		
 		if (!playersData) return players;
-		return players.filter(p => {
+		
+		// Start with players who have extended stats in the selected tier AND are currently in that tier
+		const playersInTierWithStats = players.filter(p => {
 			const playerData = playersData.find(pd => pd.name.toLowerCase() === p.name.toLowerCase());
 			if (playerData?.tier?.name) {
 				return playerData.tier.name === selectedTier;
 			}
 			return true;
 		});
-	}, [extendedStatsByTier, selectedTier, playersData]);
+		
+		// Track which players we already have
+		const existingPlayerNames = new Set(playersInTierWithStats.map(p => p.name.toLowerCase()));
+		
+		// Find players who are currently in the selected tier but have extended stats in a different tier
+		// They must have at least 3 games in any tier to be included
+		const playersWithoutTierStats: ExtendedPlayerStats[] = [];
+		playersData.forEach(pd => {
+			if (pd.tier?.name === selectedTier && !existingPlayerNames.has(pd.name.toLowerCase())) {
+				// Player is in this tier but doesn't have extended stats in this tier
+				// Check if they have at least 3 games in any tier, preferring the closest tier
+				const result = getPlayerExtendedStatsFromAnyTier(pd.name, selectedTier);
+				if (result) {
+					// Create a placeholder stats object for this player in the current tier
+					// Keep original games from source tier - the badge will indicate it's from another tier
+					playersWithoutTierStats.push({
+						...result.stats,
+						name: pd.name, // Use the canonical name from playersData
+						tier: selectedTier,
+					} as ExtendedPlayerStats);
+				}
+			}
+		});
+		
+		return [...playersInTierWithStats, ...playersWithoutTierStats];
+	}, [extendedStatsByTier, selectedTier, playersData, getPlayerExtendedStatsFromAnyTier]);
 
 	// Create a map of player name to player type for filtering
 	const playerTypeMap = React.useMemo(() => {
@@ -1150,13 +1308,24 @@ export function DraftList() {
 													<td className="px-3 py-2">
 														<div className={`font-medium text-sm ${isDrafted ? "text-gray-500" : "text-white"}`}>
 															{player.name}
+															{playerStatsTierMap[player.name.toLowerCase()] && (
+																<span 
+																	className="ml-2 inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-orange-900 text-orange-300"
+																	title={`Stats shown are from ${playerStatsTierMap[player.name.toLowerCase()]} (no ${selectedTier} stats yet)`}
+																>
+																	↑↓ {playerStatsTierMap[player.name.toLowerCase()]}
+																</span>
+															)}
 														</div>
 														<div className="text-xs text-gray-500">
 															{getPlayerTeamDisplay(player.name, player.team, playersData)}
 														</div>
 														{/* Map Stats - always visible */}
 														{(() => {
-															const ecoKey = `${player.name.toLowerCase()}:${selectedTier.toLowerCase()}`;
+															// For promoted/demoted players, use their source tier for map stats lookup
+															const sourceTier = playerStatsTierMap[player.name.toLowerCase()];
+															const tierForLookup = sourceTier || selectedTier;
+															const ecoKey = `${player.name.toLowerCase()}:${tierForLookup.toLowerCase()}`;
 															const ecoData = ecoDataMapByTier[ecoKey];
 															const mapsWithData = mapNames
 																.filter(m => 
@@ -1174,9 +1343,9 @@ export function DraftList() {
 																	{mapsWithData.map(mapName => {
 																		const mapData = ecoData?.mapData?.[mapName];
 																		return (
-																			<span key={mapName} className="px-1.5 py-0.5 bg-gray-700 rounded text-xs text-gray-400">
+																			<span key={mapName} className={`px-1.5 py-0.5 rounded text-xs ${sourceTier ? 'bg-orange-900/30 text-orange-300' : 'bg-gray-700 text-gray-400'}`}>
 																				{formatMapName(mapName)}: {mapData?.rating?.toFixed(2) || "-"}
-																				<span className="text-gray-600">({mapData?.gamesPlayed || 0})</span>
+																				<span className={sourceTier ? 'text-orange-500' : 'text-gray-600'}>({mapData?.gamesPlayed || 0})</span>
 																			</span>
 																		);
 																	})}
@@ -1192,9 +1361,21 @@ export function DraftList() {
 													</td>
 													<td className="px-3 py-2 text-center text-sm text-yellow-400">
 														{player.gameCount || "-"}
+														{playerStatsTierMap[player.name.toLowerCase()] && (
+															<span className="text-orange-400 text-xs ml-1">*</span>
+														)}
 													</td>
 													<td className="px-3 py-2 text-center text-sm text-cyan-400">
-														{ecoRatingMapByTier[`${player.name.toLowerCase()}:${selectedTier.toLowerCase()}`]?.toFixed(2) || "-"}
+														{(() => {
+															// For promoted/demoted players, use their source tier for eco rating lookup
+															const sourceTier = playerStatsTierMap[player.name.toLowerCase()];
+															const tierForLookup = sourceTier || selectedTier;
+															const ecoRating = ecoRatingMapByTier[`${player.name.toLowerCase()}:${tierForLookup.toLowerCase()}`];
+															return ecoRating?.toFixed(2) || "-";
+														})()}
+														{playerStatsTierMap[player.name.toLowerCase()] && (
+															<span className="text-orange-400 text-xs ml-1">*</span>
+														)}
 													</td>
 													<td className="px-3 py-2 text-center">
 														<button
